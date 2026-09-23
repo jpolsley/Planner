@@ -1,6 +1,6 @@
-/* Sterward Assistant — on-device AI for the planner, powered by the Kin Studio engine (kin-engine.js).
+/* Steward Assistant — on-device AI for the planner, powered by the Kin Studio engine (kin-engine.js).
  * The model downloads once from Hugging Face, is cached by the browser, and runs locally.
- * Sterward "grows" through memory: facts it learns about you in chat plus patterns from how you use the planner.
+ * Steward "grows" through memory: facts it learns about you in chat plus patterns from how you use the planner.
  * The model's weights never change; what it knows about you lives in this browser and can be edited. */
 const KIN_MODELS = Object.freeze({
   main: { key: 'main', name: 'Qwen2.5 1.5B', repo: 'onnx-community/Qwen2.5-1.5B-Instruct', dtype: 'q4', context: 4096, size: '~1.1 GB' },
@@ -10,12 +10,12 @@ const KIN_MODELS = Object.freeze({
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
-const KIN_BASE = 'You are Sterward, a personal planning assistant inside the user\'s planner. You know the user and get to know them better over time. Be clear, practical, warm, and honest. Help the user prioritize and take manageable next steps, and tailor advice to what you know about them. Keep replies short. When you suggest new tasks, put each on its own line starting with "- " and include a duration like 30m and a day if relevant. Use only the facts and planner snapshot below; never invent tasks, meetings, or facts about the user.';
+const KIN_BASE = 'You are Steward, a personal planning assistant inside the user\'s planner. You know the user and get to know them better over time. Be clear, practical, warm, and honest. Help the user prioritize and take manageable next steps, and tailor advice to what you know about them. Keep replies short. When you suggest new tasks, put each on its own line starting with "- " and include a duration like 30m and a day if relevant. Use only the facts and planner snapshot below; never invent tasks, meetings, or facts about the user.';
 
 const kinLoad = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const kinSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
-/* ---------- memory: what Sterward has learned about you ---------- */
+/* ---------- memory: what Steward has learned about you ---------- */
 const kinMem = {
   items: kinLoad(KIN_MEM_KEY, []), subs: new Set(),
   commit(items) { this.items = items.slice(0, 300); kinSave(KIN_MEM_KEY, this.items); this.subs.forEach((f) => f()); },
@@ -43,7 +43,7 @@ function kinRecall(query, limit = 14) {
   return scored.slice(0, limit).map((x) => x.m);
 }
 
-/* ---------- patterns: what Sterward notices from how you use the planner ---------- */
+/* ---------- patterns: what Steward notices from how you use the planner ---------- */
 function learnedPatterns(state) {
   const done = state.tasks.filter((t) => t.status === 'done' && t.completed);
   if (done.length < 5) return [];
@@ -92,7 +92,7 @@ const kinAI = {
         this.set({ progress: (x.file ? String(x.file).split('/').pop() : x.status || '') + pct });
       } else if (d.type === 'ready') this.set({ status: 'ready', device: d.device, progress: '' });
       else if (d.type === 'error' && d.phase === 'load') {
-        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + d.message + '), so Sterward is using the lighter 0.5B model.' }); this.load('fallback'); }
+        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + d.message + '), so Steward is using the lighter 0.5B model.' }); this.load('fallback'); }
         else this.set({ status: 'error', error: d.message });
       } else if (d.type === 'fallback') this.set({ progress: d.text });
       const job = this.jobs.get(d.requestId);
@@ -212,18 +212,18 @@ function AssistantView(ctx) {
         <b>${m ? m.name : KIN_MODELS.main.name}</b>
         <span class="muted small">${ready ? 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
         <span class="grow" style=${{ flex: '1' }}></span>
-        ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Sterward</button>` : null}
+        ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
         ${ready ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
-        <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Sterward</label>
+        <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Steward</label>
       </div>
       ${kinAI.note ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>${kinAI.note}</p>` : null}
       ${kinAI.status === 'error' ? html`<p class="small" style=${{ padding: '0 16px 12px', color: 'var(--danger,#c33)' }}>${kinAI.error}</p>` : null}
-      ${kinAI.status === 'idle' ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>The first load downloads the model from Hugging Face, then the browser caches it. Chrome or Edge on a recent computer is fastest (GPU). Everything, including what Sterward learns about you, stays on this device.</p>` : null}
+      ${kinAI.status === 'idle' ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>The first load downloads the model from Hugging Face, then the browser caches it. Chrome or Edge on a recent computer is fastest (GPU). Everything, including what Steward learns about you, stays on this device.</p>` : null}
     </section>
 
     ${tab === 'chat' ? html`<section class="panel">
       <div style=${{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '240px', maxHeight: '58vh', overflow: 'auto' }} aria-live="polite">
-        ${!msgs.length ? html`<p class="muted small">Talk to Sterward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
+        ${!msgs.length ? html`<p class="muted small">Talk to Steward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
           <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.content || (x.pending ? '…' : '')}</div>
           ${x.role === 'assistant' && !x.pending ? suggestionLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
@@ -237,7 +237,7 @@ function AssistantView(ctx) {
       </div>
       <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
         <${Icon} n="spark" cls="muted" />
-        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Sterward, or tell it about yourself…' : 'Load Sterward to start chatting'} disabled=${!ready} aria-label="Message Sterward" autocomplete="off" />
+        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Steward, or tell it about yourself…' : 'Load Steward to start chatting'} disabled=${!ready} aria-label="Message Steward" autocomplete="off" />
         ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!ready || !input.trim()}>Send</button>`}
       </form>
     </section>` : html`<${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} />`}
@@ -249,23 +249,23 @@ function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
   const [editing, setEditing] = useState(null);
   const fileRef = useRef();
   const exportMem = () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ format: 'sterward-memory', version: 1, items: kinMem.items }, null, 2)], { type: 'application/json' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'sterward-memory.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ format: 'steward-memory', version: 1, items: kinMem.items }, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'steward-memory.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const importMem = (file) => file && file.text().then((t) => {
     const d = JSON.parse(t); let n = 0;
     (Array.isArray(d.items) ? d.items : []).forEach((m) => { if (m && typeof m.text === 'string' && kinMem.add(m.text, m.source || 'you')) n++; });
     setToast({ text: 'Imported ' + n + ' memor' + (n === 1 ? 'y' : 'ies'), id: uid() });
-  }).catch(() => setToast({ text: 'That file isn’t a Sterward memory backup', id: uid() }));
+  }).catch(() => setToast({ text: 'That file isn’t a Steward memory backup', id: uid() }));
   return html`<div>
     <section class="panel" style=${{ marginBottom: '16px' }}>
-      <div class="ph"><h2>What Sterward knows about you</h2><span class="grow"></span>
+      <div class="ph"><h2>What Steward knows about you</h2><span class="grow"></span>
         <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.learn} onChange=${(e) => setPrefs({ learn: e.target.checked })} />Learn from our chats</label></div>
       <form style=${{ padding: '12px 16px', display: 'flex', gap: '8px' }} onSubmit=${(e) => { e.preventDefault(); if (kinMem.add(draft, 'you')) setDraft(''); else setToast({ text: 'Already known', id: uid() }); }}>
-        <input class="in" value=${draft} onInput=${(e) => setDraft(e.target.value)} placeholder="Teach Sterward something, e.g. “I do my best thinking before 10am”" aria-label="New memory" />
+        <input class="in" value=${draft} onInput=${(e) => setDraft(e.target.value)} placeholder="Teach Steward something, e.g. “I do my best thinking before 10am”" aria-label="New memory" />
         <button class="btn pri sm" type="submit" disabled=${draft.trim().length < 4}>Add</button>
       </form>
-      ${!kinMem.items.length ? html`<p class="muted small" style=${{ padding: '0 16px 16px' }}>Nothing yet. As you chat, Sterward will save lasting facts here: your role, routines, goals, and preferences. You can edit or delete anything.</p>` : null}
+      ${!kinMem.items.length ? html`<p class="muted small" style=${{ padding: '0 16px 16px' }}>Nothing yet. As you chat, Steward will save lasting facts here: your role, routines, goals, and preferences. You can edit or delete anything.</p>` : null}
       <div>${kinMem.items.map((m) => html`<div key=${m.id} style=${{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 16px', borderTop: '1px solid var(--line)' }}>
         ${editing === m.id
           ? html`<input class="in" autoFocus value=${m.text} onInput=${(e) => kinMem.update(m.id, e.target.value)} onBlur=${() => setEditing(null)} onKeyDown=${(e) => e.key === 'Enter' && setEditing(null)} aria-label="Edit memory" />`
@@ -277,14 +277,14 @@ function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
         <button class="btn sm" onClick=${exportMem} disabled=${!kinMem.items.length}>Back up memory</button>
         <button class="btn sm" onClick=${() => fileRef.current.click()}>Restore from file</button>
         <input ref=${fileRef} type="file" accept=".json,application/json" hidden onChange=${(e) => { importMem(e.target.files[0]); e.target.value = ''; }} />
-        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Sterward has learned about you?')) kinMem.commit([]); }}>Forget everything</button>` : null}
+        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Steward has learned about you?')) kinMem.commit([]); }}>Forget everything</button>` : null}
       </div>
     </section>
     <section class="panel">
       <div class="ph"><h2>Patterns from your planner</h2></div>
       <div style=${{ padding: '12px 16px' }}>
-        ${pats.length ? pats.map((p) => html`<p key=${p} style=${{ margin: '0 0 6px' }}>• ${p}</p>`) : html`<p class="muted small" style=${{ margin: 0 }}>Complete a few more tasks and Sterward will start noticing how you work: your estimates, best times of day, and deadlines.</p>`}
-        <p class="small muted" style=${{ margin: '10px 0 0' }}>These update automatically as you use the planner, and Sterward uses them in every answer.</p>
+        ${pats.length ? pats.map((p) => html`<p key=${p} style=${{ margin: '0 0 6px' }}>• ${p}</p>`) : html`<p class="muted small" style=${{ margin: 0 }}>Complete a few more tasks and Steward will start noticing how you work: your estimates, best times of day, and deadlines.</p>`}
+        <p class="small muted" style=${{ margin: '10px 0 0' }}>These update automatically as you use the planner, and Steward uses them in every answer.</p>
       </div>
     </section>
   </div>`;
