@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Sterward</title>
+<title>Steward</title>
 <meta name="theme-color" content="#0f6e62">
 <style>
 :root{--ground:#f3f5f2;--surface:#fff;--line:#d8ded7;--ink:#18201d;--ink-3:#7c8783;--accent:#0f6e62;--accent-2:#0b5249;--on-accent:#fff;--bad:#b0392f;color-scheme:light}
@@ -23,8 +23,8 @@ button:hover{background:var(--accent-2)}button:disabled{opacity:.6;cursor:wait}
 </style>
 </head><body>
 <form id="f" autocomplete="on">
-  <div class="brand"><i>S</i>Sterward</div>
-  <input type="text" name="username" value="sterward" autocomplete="username" hidden>
+  <div class="brand"><i>S</i>Steward</div>
+  <input type="text" name="username" value="steward" autocomplete="username" hidden>
   <label for="pw">Password</label>
   <input id="pw" type="password" autocomplete="current-password" required autofocus>
   <label class="row"><input id="rem" type="checkbox" checked> Stay unlocked on this device</label>
@@ -35,7 +35,7 @@ button:hover{background:var(--accent-2)}button:disabled{opacity:.6;cursor:wait}
 (() => {
 'use strict';
 const P = __PAYLOAD__;
-const KEY = 'sterward.unlock.v1';
+const KEY = 'steward.unlock.v1';
 const bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 async function unlock(key) {
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(P.iv) }, key, bytes(P.data));

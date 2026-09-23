@@ -1,13 +1,13 @@
-// Builds a password-locked copy of Sterward into dist/index.html.
+// Builds a password-locked copy of Steward into dist/index.html.
 // The app (with its scripts inlined) is encrypted with AES-256-GCM using a key derived from the password
 // (PBKDF2-SHA256). The published page holds only ciphertext; the password is never written anywhere.
-//   STERWARD_PASSWORD='your password' node tools/lock.mjs
+//   STEWARD_PASSWORD='your password' node tools/lock.mjs
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { webcrypto as crypto } from 'node:crypto';
 
-const password = process.env.STERWARD_PASSWORD;
+const password = process.env.STEWARD_PASSWORD;
 if (!password || password.length < 8) {
-  console.error('Set STERWARD_PASSWORD (at least 8 characters). Refusing to publish an unlocked site.');
+  console.error('Set STEWARD_PASSWORD (at least 8 characters). Refusing to publish an unlocked site.');
   process.exit(1);
 }
 const ITER = 600000;
