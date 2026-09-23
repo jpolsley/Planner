@@ -95,14 +95,15 @@ function createKinEngine(emit, options = {}) {
       if (!alive) return;
       phase = 'MODEL_LOAD';
       progress('model', 'Downloading ' + model.repo + ' and preparing the local ' + selected + ' runtime');
-      const config = { dtype: model.dtype, device: selected,
+      const dtypeFor = (d) => (model.dtypes && model.dtypes[d]) || model.dtype;
+      const config = { dtype: dtypeFor(selected), device: selected,
         progress_callback: detail => notify('progress', { detail }) };
       try { generator = await library.pipeline('text-generation', model.repo, config); }
       catch (error) {
         if (selected !== 'webgpu' || !alive) throw error;
         selected = 'wasm';
         notify('fallback', { text: 'The GPU path failed. Trying this model on the CPU.' });
-        generator = await library.pipeline('text-generation', model.repo, { ...config, device: selected });
+        generator = await library.pipeline('text-generation', model.repo, { ...config, dtype: dtypeFor(selected), device: selected });
       }
       if (!alive) return;
       // v3.8.1 generation awaits model.forward for each token. Yield before
