@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Kin Planner</title>
+<title>Sterward</title>
 <meta name="theme-color" content="#0f6e62">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -222,7 +222,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 <script src="kin-engine.js"></script>
 <script src="assistant.js"></script>
 <script>
-/* ================= Kin Planner — engine ================= */
+/* ================= Sterward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -647,7 +647,7 @@ function App() {
     updEvent: (id, patch, label) => commit((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
     delEvent: (id) => commit((s) => ({ ...s, events: s.events.filter((e) => e.id !== id) }), 'Event deleted'),
     lockBlock: (taskId, start, end, replaceLockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: [...(t.locked || []).filter((b) => b.id !== replaceLockId), { id: uid(), start, end }] }) }), 'Block locked at ' + fmtT(start) + ' — the rest reflowed'),
-    unlock: (taskId, lockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: (t.locked || []).filter((b) => b.id !== lockId) }) }), 'Unlocked — Kin will place it'),
+    unlock: (taskId, lockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: (t.locked || []).filter((b) => b.id !== lockId) }) }), 'Unlocked — Sterward will place it'),
     setSettings: (patch) => commit((s) => ({ ...s, settings: { ...s.settings, ...patch } })),
     addProject: (p) => { commit((s) => ({ ...s, projects: [...s.projects, p] })); },
     updProject: (id, patch) => commit((s) => ({ ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
@@ -666,7 +666,7 @@ function App() {
     if (p.kind === 'event') {
       const clash = state.events.find((e) => e.start < p.end && e.end > p.start);
       const e = A.addEvent({ title: p.title, start: p.start, end: p.end });
-      say([{ tag: 'done', text: 'Added meeting “' + e.title + '” · ' + relD(e.start, now) + ' ' + fmtT(e.start) + '–' + fmtT(e.end) + '. Flexible work around it was reflowed.' }, ...(clash ? [{ tag: 'sugg', text: 'Overlaps “' + clash.title + '”. Kin didn’t move either — adjust one if needed.' }] : [])]);
+      say([{ tag: 'done', text: 'Added meeting “' + e.title + '” · ' + relD(e.start, now) + ' ' + fmtT(e.start) + '–' + fmtT(e.end) + '. Flexible work around it was reflowed.' }, ...(clash ? [{ tag: 'sugg', text: 'Overlaps “' + clash.title + '”. Sterward didn’t move either — adjust one if needed.' }] : [])]);
       return;
     }
     const t = A.addTask({ title: p.title, duration: p.duration, priority: p.priority, deadline: p.deadline, projectId: p.projectId });
@@ -685,7 +685,7 @@ function App() {
   const NAV = [['today', 'Today', 'today'], ['calendar', 'Calendar', 'cal'], ['tasks', 'Tasks', 'tasks', openTasks], ['projects', 'Projects', 'proj', state.projects.filter((p) => p.status !== 'done').length], ['notes', 'Notes', 'notes', state.notes.length], ['assistant', 'Assistant', 'spark']];
   return html`<div class="app">
     <nav class="rail" aria-label="Main">
-      <div class="brand"><i>K</i>Kin Planner</div>
+      <div class="brand"><i>S</i>Sterward</div>
       ${NAV.map(([k, l, ic, ct]) => html`<button key=${k} class=${'nav' + (view === k ? ' on' : '')} onClick=${() => setView(k)} aria-current=${view === k ? 'page' : null}><${Icon} n=${ic} /><span class="lbl">${l}</span><span class="mlbl">${l}</span>${ct ? html`<span class="ct">${ct}</span>` : null}</button>`)}
       <button class="nav" onClick=${() => setSearch(true)}><${Icon} n="search" /><span class="lbl">Search</span><span class="mlbl">Search</span><span class="ct">⌘K</span></button>
       <div class="spacer"></div>
@@ -717,7 +717,7 @@ function CommandBar({ runCommand, log }) {
   return html`<div>
     <form class="cmd" onSubmit=${(e) => { e.preventDefault(); runCommand(v); setV(''); }}>
       <${Icon} n="spark" cls="muted" />
-      <input id="cmd" ref=${ref} value=${v} onInput=${(e) => setV(e.target.value)} placeholder="Tell Kin: “give the dog a bath today”, “call Sam fri 2pm”, “plan a youth retreat by nov 15”" aria-label="Tell Kin what to add or plan" autocomplete="off" />
+      <input id="cmd" ref=${ref} value=${v} onInput=${(e) => setV(e.target.value)} placeholder="Tell Sterward: “give the dog a bath today”, “call Sam fri 2pm”, “plan a youth retreat by nov 15”" aria-label="Tell Sterward what to add or plan" autocomplete="off" />
       <span class="k">/</span>
       <button class="btn pri sm" type="submit">Go</button>
     </form>
@@ -830,7 +830,7 @@ function TodayView(ctx) {
       <div class="bar"><i style=${{ width: pct + '%' }}></i></div></div>`;
   } else {
     const nx = upcoming[0];
-    nowCard = html`<div class="now"><div class="eyebrow">${hrs && minOfDay(now) < hrs[1] ? 'Open time' : 'Off the clock'}</div><h3>${nx ? 'Next up at ' + fmtT(nx.start) + ': ' + nx.title : 'Nothing scheduled right now'}</h3><div class="meta">${nx ? relD(nx.start, now) : 'Add a task above and Kin will find it a slot.'}</div>
+    nowCard = html`<div class="now"><div class="eyebrow">${hrs && minOfDay(now) < hrs[1] ? 'Open time' : 'Off the clock'}</div><h3>${nx ? 'Next up at ' + fmtT(nx.start) + ': ' + nx.title : 'Nothing scheduled right now'}</h3><div class="meta">${nx ? relD(nx.start, now) : 'Add a task above and Sterward will find it a slot.'}</div>
       ${nx && nx.kind === 'tk' ? html`<div class="acts"><button class="btn sm pri" onClick=${() => A.lockBlock(nx.t.id, Math.ceil(now / SLOT) * SLOT, Math.ceil(now / SLOT) * SLOT + (nx.end - nx.start))}><${Icon} n="play" />Start it now</button></div>` : null}</div>`;
   }
 
@@ -992,7 +992,7 @@ function EventModal({ ev, A, onClose, now }) {
   const dur = Math.round((f.end - f.start) / MIN);
   const save = (e) => { e.preventDefault(); const t = f.title.trim() || 'Meeting'; if (isNew) A.addEvent({ ...f, title: t }); else A.updEvent(ev.id, { ...f, title: t }, 'Saved'); onClose(); };
   return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}><form class="modal" onSubmit=${save} style=${{ maxWidth: '440px' }}>
-    <div class="muted mono" style=${{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em' }}>${isNew ? 'New meeting' : 'Meeting'} · fixed — Kin plans around it</div>
+    <div class="muted mono" style=${{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em' }}>${isNew ? 'New meeting' : 'Meeting'} · fixed — Sterward plans around it</div>
     <input id="ev-title" class="title-in" autofocus value=${f.title} onInput=${(e) => setF({ ...f, title: e.target.value })} placeholder="What’s the meeting?" />
     <div class="grid2">
       <div class="fld"><label for="ev-s">Starts</label><input id="ev-s" class="in" type="datetime-local" value=${toLocalDT(f.start)} onChange=${(e) => { const s = new Date(e.target.value).getTime(); setF({ ...f, start: s, end: s + dur * MIN }); }} /></div>
@@ -1178,7 +1178,7 @@ function SettingsView({ state, A, setState, commit, setToast }) {
       ${!s.breaks.length ? html`<span class="muted">No breaks.</span>` : null}
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Scheduling</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <label style=${{ display: 'flex', gap: '10px', alignItems: 'start' }}><input type="checkbox" id="auto" checked=${s.autoApply} onChange=${(e) => commit((st) => ({ ...st, settings: { ...st.settings, autoApply: e.target.checked }, plan: e.target.checked ? null : { blocks: runSchedule(st, Date.now()).blocks } }))} /><span><b>Reschedule automatically</b><br/><span class="muted" style=${{ fontSize: '13px' }}>When off, Kin shows proposed changes and waits for you to apply them.</span></span></label>
+      <label style=${{ display: 'flex', gap: '10px', alignItems: 'start' }}><input type="checkbox" id="auto" checked=${s.autoApply} onChange=${(e) => commit((st) => ({ ...st, settings: { ...st.settings, autoApply: e.target.checked }, plan: e.target.checked ? null : { blocks: runSchedule(st, Date.now()).blocks } }))} /><span><b>Reschedule automatically</b><br/><span class="muted" style=${{ fontSize: '13px' }}>When off, Sterward shows proposed changes and waits for you to apply them.</span></span></label>
       <div class="grid3">
         <div class="fld"><label for="mc">Default smallest block</label><select id="mc" class="in" value=${s.minChunk} onChange=${(e) => A.setSettings({ minChunk: +e.target.value })}>${[15, 30, 45, 60, 90].map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}</select></div>
         <div class="fld"><label for="bf">Buffer around meetings</label><select id="bf" class="in" value=${s.buffer || 0} onChange=${(e) => A.setSettings({ buffer: +e.target.value })}>${[0, 5, 10, 15, 30].map((m) => html`<option key=${m} value=${m}>${m ? m + 'm' : 'None'}</option>`)}</select></div>
@@ -1186,7 +1186,7 @@ function SettingsView({ state, A, setState, commit, setToast }) {
       </div>
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>About the assistant</h2></div><div style=${{ padding: '14px 16px', fontSize: '13.5px', color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <p style=${{ margin: 0 }}>Everything runs on this device with no account and no API key. Quick capture, project drafts and pulling actions out of notes use Kin’s built-in language rules, so they're fast and predictable. The calendar engine is real scheduling code, not AI.</p>
+      <p style=${{ margin: 0 }}>Everything runs on this device with no account and no API key. Quick capture, project drafts and pulling actions out of notes use Sterward’s built-in language rules, so they're fast and predictable. The calendar engine is real scheduling code, not AI.</p>
       <p style=${{ margin: 0 }}>Not connected: Google/Outlook calendar sync, booking links, meeting recording. The planner works without them.</p>
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Your data</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1196,7 +1196,7 @@ function SettingsView({ state, A, setState, commit, setToast }) {
         ${confirm ? html`<button class="btn sm danger" onClick=${() => { setState({ v: 1, onboarded: false, settings: defaultSettings(), projects: [], tasks: [], events: [], notes: [], plan: null }); }}>Yes, erase everything</button><button class="btn sm ghost" onClick=${() => setConfirm(false)}>Cancel</button>` : html`<button class="btn sm ghost danger" onClick=${() => setConfirm(true)}>Erase all data…</button>`}
       </div>
       <textarea id="imp" class="in" value=${imp} onInput=${(e) => setImp(e.target.value)} placeholder="Paste a backup here to restore it"></textarea>
-      <div><button class="btn sm" disabled=${!imp.trim()} onClick=${() => { try { const d = JSON.parse(imp); if (!d.tasks || !d.settings) throw 0; commit(d, 'Backup restored'); setImp(''); } catch (e) { setToast({ text: 'That isn’t a Kin backup — paste the whole copied text', id: uid() }); } }}>Restore backup</button></div>
+      <div><button class="btn sm" disabled=${!imp.trim()} onClick=${() => { try { const d = JSON.parse(imp); if (!d.tasks || !d.settings) throw 0; commit(d, 'Backup restored'); setImp(''); } catch (e) { setToast({ text: 'That isn’t a Sterward backup — paste the whole copied text', id: uid() }); } }}>Restore backup</button></div>
     </div></div>
   </div>`;
 }
@@ -1216,9 +1216,9 @@ function Onboarding({ onDone, now }) {
     onDone(st);
   };
   return html`<div style=${{ paddingInline: '16px', minHeight: '100%', background: 'var(--ground)' }}><div class="panel onb">
-    <div class="brand" style=${{ padding: '0 0 18px' }}><i>K</i>Kin Planner</div>
-    <h1>Tell Kin when you work.</h1>
-    <p class="muted" style=${{ margin: '0 0 20px' }}>Kin fits your tasks into those hours, works around your meetings, and warns you when something won’t fit before its deadline.</p>
+    <div class="brand" style=${{ padding: '0 0 18px' }}><i>S</i>Sterward</div>
+    <h1>Tell Sterward when you work.</h1>
+    <p class="muted" style=${{ margin: '0 0 20px' }}>Sterward fits your tasks into those hours, works around your meetings, and warns you when something won’t fit before its deadline.</p>
     <div class="fld"><label>Work days</label><div class="chips">${[1, 2, 3, 4, 5, 6, 0].map((d) => html`<button key=${d} class=${'chip' + (days.includes(d) ? ' on' : '')} onClick=${() => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])}>${WD[d]}</button>`)}</div></div>
     <div class="grid2" style=${{ marginTop: '14px' }}><div class="fld"><label for="ob-s">Start</label><input id="ob-s" class="in" type="time" value=${toT(s)} onChange=${(ev) => setS(fromT(ev.target.value))} /></div><div class="fld"><label for="ob-e">End</label><input id="ob-e" class="in" type="time" value=${toT(e)} onChange=${(ev) => setE(fromT(ev.target.value))} /></div></div>
     <label style=${{ display: 'flex', gap: '8px', margin: '14px 0', alignItems: 'center' }}><input type="checkbox" id="ob-l" checked=${lunch} onChange=${(ev) => setLunch(ev.target.checked)} />Protect a lunch break (12:00–12:30)</label>

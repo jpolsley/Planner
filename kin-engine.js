@@ -1,4 +1,4 @@
-/* Kin AI engine — extracted from Kin Studio. Runs a small LLM fully in the browser via Transformers.js (no API key). */
+/* Kin Studio inference engine (used by Sterward). Runs a language model fully in the browser via Transformers.js — no API key. */
 'use strict';
 /** Shared inference engine. Direct mode does not create or require a Worker.
  * No eval, no chat API, no canned answers. External downloads start on Load.

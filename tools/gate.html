@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Sterward</title>
+<meta name="theme-color" content="#0f6e62">
+<style>
+:root{--ground:#f3f5f2;--surface:#fff;--line:#d8ded7;--ink:#18201d;--ink-3:#7c8783;--accent:#0f6e62;--accent-2:#0b5249;--on-accent:#fff;--bad:#b0392f;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#121715;--surface:#1a211e;--line:#2a332f;--ink:#e6ece9;--ink-3:#78847f;--accent:#3fb8a5;--accent-2:#6fd1c1;--on-accent:#08201c;--bad:#ec7b70;color-scheme:dark}}
+:root[data-theme="dark"]{--ground:#121715;--surface:#1a211e;--line:#2a332f;--ink:#e6ece9;--ink-3:#78847f;--accent:#3fb8a5;--accent-2:#6fd1c1;--on-accent:#08201c;--bad:#ec7b70;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:16px;background:var(--ground);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+form{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;margin-bottom:18px}
+.brand i{font-style:normal;display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:15px}
+label{display:block;font-size:13px;color:var(--ink-3);margin-bottom:6px}
+input[type=password]{width:100%;font:inherit;color:inherit;background:var(--ground);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+input[type=password]:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;align-items:center;gap:8px;margin:12px 0 18px;font-size:13px;color:var(--ink-3)}
+button{width:100%;font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px;background:var(--accent);color:var(--on-accent);cursor:pointer}
+button:hover{background:var(--accent-2)}button:disabled{opacity:.6;cursor:wait}
+.err{color:var(--bad);font-size:13px;min-height:20px;margin:10px 0 0}
+</style>
+</head><body>
+<form id="f" autocomplete="on">
+  <div class="brand"><i>S</i>Sterward</div>
+  <input type="text" name="username" value="sterward" autocomplete="username" hidden>
+  <label for="pw">Password</label>
+  <input id="pw" type="password" autocomplete="current-password" required autofocus>
+  <label class="row"><input id="rem" type="checkbox" checked> Stay unlocked on this device</label>
+  <button id="go" type="submit">Unlock</button>
+  <p class="err" id="err" role="alert"></p>
+</form>
+<script>
+(() => {
+'use strict';
+const P = __PAYLOAD__;
+const KEY = 'sterward.unlock.v1';
+const bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function unlock(key) {
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(P.iv) }, key, bytes(P.data));
+  return new TextDecoder().decode(plain);
+}
+// document.open() is ignored while this page is still parsing, so wait for load first.
+const loaded = new Promise((r) => (document.readyState === 'complete' ? r() : addEventListener('load', r, { once: true })));
+async function show(html) { await loaded; document.open(); document.write(html); document.close(); }
+async function derive(pw) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: bytes(P.salt), iterations: P.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+}
+(async () => {
+  // A remembered key only works for the same build; a new password (or rebuild) asks again.
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && saved.salt === P.salt) {
+      const key = await crypto.subtle.importKey('jwk', saved.jwk, { name: 'AES-GCM' }, false, ['decrypt']);
+      await show(await unlock(key)); return;
+    }
+  } catch (e) { try { localStorage.removeItem(KEY); } catch (_) {} }
+})();
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const go = document.getElementById('go'), err = document.getElementById('err');
+  go.disabled = true; go.textContent = 'Unlocking…'; err.textContent = '';
+  try {
+    const key = await derive(document.getElementById('pw').value);
+    let jwk = null;
+    if (document.getElementById('rem').checked) jwk = await crypto.subtle.exportKey('jwk', key);
+    const html = await unlock(key);
+    if (jwk) { try { localStorage.setItem(KEY, JSON.stringify({ salt: P.salt, jwk })); } catch (_) {} }
+    await show(html);
+  } catch (x) {
+    err.textContent = 'Wrong password.'; go.disabled = false; go.textContent = 'Unlock';
+    document.getElementById('pw').select();
+  }
+});
+})();
+</script>
+</body></html>
