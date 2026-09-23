@@ -3,9 +3,9 @@
  * Steward "grows" through memory: facts it learns about you in chat plus patterns from how you use the planner.
  * The model's weights never change; what it knows about you lives in this browser and can be edited. */
 const KIN_MODELS = Object.freeze({
-  main: { key: 'main', name: 'Qwen2.5 1.5B', repo: 'onnx-community/Qwen2.5-1.5B-Instruct', dtype: 'q4', context: 4096, size: '~1.1 GB' },
+  main: { key: 'main', name: 'Qwen2.5 1.5B', repo: 'onnx-community/Qwen2.5-1.5B-Instruct', dtype: 'q4', dtypes: { webgpu: 'q4f16' }, context: 4096, size: '~1.1 GB' },
   // Only used if this device can't run the main model.
-  fallback: { key: 'fallback', name: 'Qwen2.5 0.5B', repo: 'onnx-community/Qwen2.5-0.5B-Instruct', dtype: 'q4', context: 4096, size: '~480 MB' },
+  fallback: { key: 'fallback', name: 'Qwen2.5 0.5B', repo: 'onnx-community/Qwen2.5-0.5B-Instruct', dtype: 'q4', dtypes: { webgpu: 'q4f16' }, context: 4096, size: '~480 MB' },
 });
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
@@ -79,7 +79,16 @@ const kinAI = {
   engine: null, status: 'idle', model: null, device: null, progress: '', error: '', note: '', subs: new Set(),
   jobs: new Map(), queue: Promise.resolve(), generating: false,
   set(patch) { Object.assign(this, patch); this.subs.forEach((f) => f()); },
-  load(key = 'main') {
+  async load(key) {
+    if (!key) {
+      this.set({ status: 'loading', progress: 'Checking for a GPU…', error: '' });
+      let gpu = false;
+      try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch (e) {}
+      if (!gpu) this.set({ note: 'This browser isn’t giving Steward access to the GPU, so it’s using the lighter 0.5B model on the CPU, which is slower. For the full 1.5B model and much faster replies, use a current version of Chrome or Edge.' });
+      key = gpu ? 'main' : 'fallback';
+    }
+    // Ask the browser not to evict the downloaded model when space is short.
+    try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
     if (this.engine) this.engine.terminate();
     this.jobs.forEach((j) => j.reject(new Error('Model reloaded'))); this.jobs.clear();
     const model = KIN_MODELS[key];
@@ -92,8 +101,9 @@ const kinAI = {
         this.set({ progress: (x.file ? String(x.file).split('/').pop() : x.status || '') + pct });
       } else if (d.type === 'ready') this.set({ status: 'ready', device: d.device, progress: '' });
       else if (d.type === 'error' && d.phase === 'load') {
-        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + d.message + '), so Steward is using the lighter 0.5B model.' }); this.load('fallback'); }
-        else this.set({ status: 'error', error: d.message });
+        const msg = /^\d+$/.test(String(d.message).trim()) ? 'the browser ran out of memory' : d.message;
+        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + msg + '), so Steward is using the lighter 0.5B model.' }); this.load('fallback'); }
+        else this.set({ status: 'error', error: 'Steward couldn’t start: ' + msg + (msg === d.message ? '.' : '. Close other tabs and press Load Steward to try again.') });
       } else if (d.type === 'fallback') this.set({ progress: d.text });
       const job = this.jobs.get(d.requestId);
       if (!job) return;
@@ -161,16 +171,17 @@ function kinSystem(state, plan, userText) {
 const suggestionLines = (text) => text.split('\n').map((l) => l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.{3,160})$/)).filter(Boolean).map((m) => m[1].replace(/\*\*/g, '').trim());
 
 /* Load automatically on startup once the user has opted in. */
-if (kinLoad(KIN_PREF_KEY, {}).autoLoad) setTimeout(() => kinAI.status === 'idle' && kinAI.load(), 1500);
+if (kinLoad(KIN_PREF_KEY, {}).autoLoad !== false) setTimeout(() => kinAI.status === 'idle' && kinAI.load(), 1500);
 
 function AssistantView(ctx) {
   const { state, plan, runCommand, setToast } = ctx;
   const [, force] = useState(0);
   const [tab, setTab] = useState('chat');
-  const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: false, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
+  const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: true, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
   const [msgs, setMsgs] = useState(() => kinLoad(KIN_CHAT_KEY, []));
   const [input, setInput] = useState('');
   const [added, setAdded] = useState({});
+  const [pendingText, setPending] = useState(null);
   const endRef = useRef();
 
   useEffect(() => { const f = () => force((n) => n + 1); kinAI.subs.add(f); kinMem.subs.add(f); return () => { kinAI.subs.delete(f); kinMem.subs.delete(f); }; }, []);
@@ -182,7 +193,13 @@ function AssistantView(ctx) {
   const patch = (id, fn) => setMsgs((m) => m.map((x) => (x.id === id ? { ...x, ...fn(x) } : x)));
   const send = async (text) => {
     text = (text || input).trim();
-    if (!text || !ready || busy) return;
+    if (!text || busy) return;
+    if (!ready) {
+      // Keep the message and send it as soon as the model is ready.
+      setPending(text); setInput('');
+      if (kinAI.status !== 'loading') kinAI.load();
+      return;
+    }
     const id = uid();
     const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: m.content }));
     setMsgs((m) => [...m, { id: uid(), role: 'user', content: text }, { id, role: 'assistant', content: '', pending: true }]);
@@ -198,6 +215,8 @@ function AssistantView(ctx) {
   };
   const addLine = (key, line) => { runCommand(line); setAdded((a) => ({ ...a, [key]: true })); setToast({ text: 'Added to your planner', id: uid() }); };
   const quick = ['What should I focus on today?', 'Break my biggest task into smaller steps', 'What have you learned about me?'];
+  useEffect(() => { if (ready && pendingText && !busy) { const t = pendingText; setPending(null); send(t); } }, [ready, pendingText]);
+  useEffect(() => { if (kinAI.status === 'error' && pendingText) { setInput(pendingText); setPending(null); } }, [kinAI.status]);
   const pats = learnedPatterns(state);
   const m = kinAI.model;
 
@@ -229,16 +248,17 @@ function AssistantView(ctx) {
           ${x.role === 'assistant' && !x.pending ? suggestionLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
           ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
         </div>`)}
+        ${pendingText ? html`<div style=${{ alignSelf: 'flex-end', maxWidth: '85%' }}><div style=${{ whiteSpace: 'pre-wrap', padding: '10px 13px', borderRadius: '12px', background: 'var(--accent-soft)' }}>${pendingText}</div><div class="small muted" style=${{ marginTop: '4px', textAlign: 'right' }}>Steward is loading, and will reply when it’s ready…</div></div>` : null}
         <div ref=${endRef}></div>
       </div>
       <div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        ${quick.map((q) => html`<button key=${q} class="btn sm ghost" disabled=${!ready || busy} onClick=${() => send(q)}>${q}</button>`)}
+        ${quick.map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
         ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => { setMsgs([]); setAdded({}); }}>Clear chat</button>` : null}
       </div>
       <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
         <${Icon} n="spark" cls="muted" />
-        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Steward, or tell it about yourself…' : 'Load Steward to start chatting'} disabled=${!ready} aria-label="Message Steward" autocomplete="off" />
-        ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!ready || !input.trim()}>Send</button>`}
+        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Steward, or tell it about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
+        ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
       </form>
     </section>` : html`<${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} />`}
   </div>`;
