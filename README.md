@@ -7,9 +7,11 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with a
 - **Grows with you:** after each chat, Steward saves lasting facts about you, such as your work, routines, goals, and preferences. It also notices patterns in how you use the planner: how your estimates compare to actual time, your best time of day, and whether deadlines slip. Both go into every answer. To view, edit, delete, back up, or restore what it knows, open **Assistant → What I know**. You can also say "remember that …" to teach it something directly. The model itself never changes. The learning is this editable memory.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
-## Hugging Face (optional, recommended)
+## Your own AI server on Hugging Face (recommended)
 
-On the Assistant screen, paste a Hugging Face access token (huggingface.co → Settings → Access Tokens → **Read**). Steward then answers with large hosted models: Qwen2.5 72B, falling back to Llama 3.3 70B or Qwen2.5 7B. The replies are fast on any device. The token is saved only in that browser, is sent only to Hugging Face, and is never committed or published. If Hugging Face is unreachable or your free allowance runs out, Steward switches to the on-device model. **Private mode** keeps every chat on the device.
+The `space/` folder holds a small server that runs as your own Hugging Face **Space**. It keeps your Hugging Face token on the server, searches your documents, and answers with large models: Qwen2.5 72B, falling back to Llama 3.3 70B or Qwen2.5 7B. Steward connects to it with a key only you know. If the Space can't be reached, Steward switches to the on-device model. **Private mode** keeps every chat on the device.
+
+See `space/README.md` for the Space's settings. To add documents, upload `.txt`, `.md` or `.pdf` files to the Space's `docs/` folder.
 
 ## Files
 

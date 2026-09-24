@@ -7,17 +7,25 @@ const KIN_MODELS = Object.freeze({
   // Only used if this device can't run the main model.
   fallback: { key: 'fallback', name: 'Qwen2.5 0.5B', repo: 'onnx-community/Qwen2.5-0.5B-Instruct', dtype: 'q4', dtypes: { webgpu: 'q4f16' }, context: 4096, size: '~480 MB' },
 });
-/* Hugging Face-hosted models (fast, large). The user pastes their own access token into the app;
- * it is kept only in this browser's storage and sent only to Hugging Face. */
+/* Hugging Face-hosted models via the user's own Steward Space (see space/). The Space holds the
+ * Hugging Face token; this browser only stores the Space address and its Steward key. */
 const KIN_CLOUD_MODELS = [
   { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen2.5 72B' },
   { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B' },
   { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen2.5 7B' },
 ];
 const KIN_CLOUD_KEY = 'kin.planner.cloud.v1';
-const KIN_TOKEN_KEY = 'steward.hf.token';
-const kinToken = () => { try { return localStorage.getItem(KIN_TOKEN_KEY) || ''; } catch (e) { return ''; } };
-const kinCloudAvailable = () => /^hf_[A-Za-z0-9]{20,}$/.test(kinToken());
+const KIN_SPACE_KEY = 'steward.space.v1';
+try { localStorage.removeItem('steward.hf.token'); } catch (e) {} // tokens now live only in the Space
+const kinSpace = () => kinLoad(KIN_SPACE_KEY, null);
+const kinCloudAvailable = () => { const sp = kinSpace(); return !!(sp && sp.url && sp.key); };
+/* Accepts "user/space", huggingface.co/spaces/user/space, or the direct *.hf.space address. */
+function kinSpaceUrl(input) {
+  const t = String(input).trim().replace(/\/+$/, '');
+  if (/^https:\/\/[a-z0-9-]+\.hf\.space$/i.test(t)) return t.toLowerCase();
+  const m = t.match(/^(?:https?:\/\/)?(?:huggingface\.co\/spaces\/)?([\w.-]+)\/([\w.-]+)$/i);
+  return m ? 'https://' + (m[1] + '-' + m[2]).toLowerCase().replace(/[._]/g, '-') + '.hf.space' : null;
+}
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
@@ -176,42 +184,44 @@ const kinAI = {
 
 /* Streams a reply from Hugging Face's OpenAI-compatible router, moving down the model list if one isn't offered. */
 async function kinCloudChat({ messages, maxTokens, temperature, onChunk }) {
-  let i = Math.min(kinLoad(KIN_CLOUD_KEY, 0), KIN_CLOUD_MODELS.length - 1);
-  for (; i < KIN_CLOUD_MODELS.length; i++) {
-    const ctrl = new AbortController(); kinAI.abort = ctrl;
-    let res;
-    try {
-      res = await fetch('https://router.huggingface.co/v1/chat/completions', {
-        method: 'POST', signal: ctrl.signal,
-        headers: { Authorization: 'Bearer ' + kinToken(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: KIN_CLOUD_MODELS[i].id, messages, max_tokens: maxTokens, temperature: Math.max(temperature, 0.1), stream: true }),
-      });
-    } catch (e) { if (e.name === 'AbortError') throw e; throw new Error('no connection'); }
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      if ([400, 404, 422].includes(res.status) && /model|not supported|not found|provider/i.test(body) && i + 1 < KIN_CLOUD_MODELS.length) continue;
-      throw new Error(res.status === 401 ? 'the access token was rejected' : res.status === 402 ? 'the free monthly allowance is used up' : res.status === 429 ? 'too many requests' : 'error ' + res.status);
-    }
-    if (i !== kinLoad(KIN_CLOUD_KEY, 0)) { kinSave(KIN_CLOUD_KEY, i); kinAI.set({ model: { key: 'cloud', name: KIN_CLOUD_MODELS[i].name, cloud: i } }); }
-    const reader = res.body.getReader(), dec = new TextDecoder();
-    let buf = '', text = '';
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          const data = line.replace(/^data:\s*/, '').trim();
-          if (!line.startsWith('data:') || !data || data === '[DONE]') continue;
-          try { const c = JSON.parse(data).choices?.[0]?.delta?.content; if (c) { text += c; onChunk && onChunk(c); } } catch (e) {}
-        }
-      }
-    } catch (e) { if (e.name !== 'AbortError') throw Object.assign(new Error(e.message), { partial: text }); }
-    finally { kinAI.abort = null; }
-    return text;
+  const sp = kinSpace();
+  const ctrl = new AbortController(); kinAI.abort = ctrl;
+  let res;
+  try {
+    res = await fetch(sp.url + '/v1/chat/completions', {
+      method: 'POST', signal: ctrl.signal,
+      headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, max_tokens: maxTokens, temperature }),
+    });
+  } catch (e) { kinAI.abort = null; if (e.name === 'AbortError') throw e; throw new Error('couldn’t reach your Space. It may be asleep or still starting'); }
+  if (!res.ok) {
+    kinAI.abort = null;
+    let detail = ''; try { detail = (await res.json()).error || ''; } catch (e) {}
+    throw new Error(res.status === 401 && /Steward key/.test(detail) ? 'the Steward key doesn’t match the Space'
+      : res.status === 401 ? 'the Space’s HF_TOKEN was rejected. Check its permissions'
+      : res.status === 402 ? 'the free monthly allowance is used up'
+      : res.status === 500 && detail ? detail
+      : 'error ' + res.status + (detail ? ': ' + detail.slice(0, 120) : ''));
   }
-  throw new Error('none of the models are offered');
+  const used = res.headers.get('X-Steward-Model');
+  if (used) { const i = KIN_CLOUD_MODELS.findIndex((x) => x.id === used); const name = i >= 0 ? KIN_CLOUD_MODELS[i].name : used.split('/').pop(); if (!kinAI.model || kinAI.model.name !== name) kinAI.set({ model: { key: 'cloud', name } }); }
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = '', text = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        const data = line.replace(/^data:\s*/, '').trim();
+        if (!line.startsWith('data:') || !data || data === '[DONE]') continue;
+        try { const c = JSON.parse(data).choices?.[0]?.delta?.content; if (c) { text += c; onChunk && onChunk(c); } } catch (e) {}
+      }
+    }
+  } catch (e) { if (e.name !== 'AbortError') throw Object.assign(new Error(e.message), { partial: text }); }
+  finally { kinAI.abort = null; }
+  return text;
 }
 
 /* Ask the model which lasting facts about the user a message reveals. */
@@ -303,14 +313,29 @@ function AssistantView(ctx) {
   const pats = learnedPatterns(state);
   const m = kinAI.model;
   const restart = () => { kinAI.cloudOff = false; kinAI.unload(); setTimeout(() => kinAI.load(), 0); };
-  const [tok, setTok] = useState('');
-  const saveTok = () => {
-    const t = tok.trim();
-    if (!/^hf_[A-Za-z0-9]{20,}$/.test(t)) { setToast({ text: 'That doesn’t look like a Hugging Face token (it starts with hf_)', id: uid() }); return; }
-    try { localStorage.setItem(KIN_TOKEN_KEY, t); } catch (e) {}
-    setTok(''); restart(); setToast({ text: 'Connected to Hugging Face', id: uid() });
+  const [spUrl, setSpUrl] = useState('');
+  const [spKey, setSpKey] = useState('');
+  const [checking, setChecking] = useState(false);
+  const connect = async () => {
+    const url = kinSpaceUrl(spUrl);
+    if (!url) { setToast({ text: 'Enter your Space like “yourname/steward”', id: uid() }); return; }
+    setChecking(true);
+    try {
+      const res = await fetch(url + '/', { cache: 'no-store' });
+      const info = await res.json();
+      if (!info.configured) { setToast({ text: 'Found your Space, but its HF_TOKEN or STEWARD_KEY secret is missing', id: uid() }); return; }
+      // An empty chat is rejected with 401 for a wrong key and 400 for a right one, without using any credits.
+      const probe = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + spKey.trim(), 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
+      if (probe.status === 401) { setToast({ text: 'That Steward key doesn’t match the one in your Space', id: uid() }); return; }
+      kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0 });
+      setSpUrl(''); setSpKey(''); restart();
+      setToast({ text: 'Connected to your Space' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
+    } catch (e) {
+      setToast({ text: 'Couldn’t reach that Space. If it’s asleep, wait 30 seconds and try again', id: uid() });
+    } finally { setChecking(false); }
   };
-  const removeTok = () => { try { localStorage.removeItem(KIN_TOKEN_KEY); } catch (e) {} kinSave(KIN_CLOUD_KEY, 0); restart(); setToast({ text: 'Token removed from this device', id: uid() }); };
+  const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
+  const sp = kinSpace();
 
   return html`<div>
     <header class="hdr"><div><div class="sub">Your planning AI · learns about you</div><h1>Assistant</h1></div><span class="grow"></span>
@@ -321,7 +346,7 @@ function AssistantView(ctx) {
     <section class="panel" style=${{ marginBottom: '16px' }}>
       <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         <b>${m ? m.name : kinCloudAvailable() && !prefs.onDevice ? KIN_CLOUD_MODELS[0].name : KIN_MODELS.main.name}</b>
-        <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · on Hugging Face' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
+        <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Space' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
         <span class="grow" style=${{ flex: '1' }}></span>
         ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
         ${ready && kinAI.device !== 'cloud' ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
@@ -333,11 +358,12 @@ function AssistantView(ctx) {
       ${kinAI.status === 'idle' ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>The first load downloads the model from Hugging Face, then the browser caches it. Chrome or Edge on a recent computer is fastest (GPU). Everything, including what Steward learns about you, stays on this device.</p>` : null}
       <div style=${{ padding: '12px 16px', borderTop: '1px solid var(--line)' }}>
         ${kinCloudAvailable()
-          ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to Hugging Face on this device. Chats are answered by a large model on their servers.</span><button class="btn sm ghost" onClick=${removeTok}>Remove token</button></div>`
-          : html`<form style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }} onSubmit=${(e) => { e.preventDefault(); saveTok(); }}>
-              <span class="small" style=${{ flex: '1 1 100%' }}><b>Faster, smarter answers:</b> paste a Hugging Face access token (huggingface.co → Settings → Access Tokens → “Read”). It’s saved only in this browser and sent only to Hugging Face.</span>
-              <input class="in" type="password" autocomplete="off" value=${tok} onInput=${(e) => setTok(e.target.value)} placeholder="hf_…" aria-label="Hugging Face token" style=${{ flex: '1', minWidth: '200px' }} />
-              <button class="btn pri sm" type="submit" disabled=${!tok.trim()}>Connect</button>
+          ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to your Space (${sp.url.replace('https://', '')})${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}. Chats are answered by a large model on Hugging Face.</span><button class="btn sm ghost" onClick=${disconnect}>Disconnect</button></div>`
+          : html`<form style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }} onSubmit=${(e) => { e.preventDefault(); connect(); }}>
+              <span class="small" style=${{ flex: '1 1 100%' }}><b>Faster, smarter answers:</b> connect your Steward Space on Hugging Face. Enter the Space name and the Steward key you gave it.</span>
+              <input class="in" value=${spUrl} onInput=${(e) => setSpUrl(e.target.value)} placeholder="yourname/steward" aria-label="Space name" autocomplete="off" style=${{ flex: '1', minWidth: '180px' }} />
+              <input class="in" type="password" value=${spKey} onInput=${(e) => setSpKey(e.target.value)} placeholder="Steward key" aria-label="Steward key" autocomplete="off" style=${{ flex: '1', minWidth: '160px' }} />
+              <button class="btn pri sm" type="submit" disabled=${!spUrl.trim() || spKey.trim().length < 8 || checking}>${checking ? 'Checking…' : 'Connect'}</button>
             </form>`}
       </div>
     </section>
