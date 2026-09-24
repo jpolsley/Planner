@@ -617,7 +617,7 @@ function App() {
     if (prev) { setState(prev); setToast({ text: 'Undone', id: uid() }); }
   }, []);
   useEffect(() => { const k = (e) => { const tag = (e.target.tagName || '').toLowerCase(); if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !['input', 'textarea'].includes(tag)) { e.preventDefault(); undo(); } if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [undo]);
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.text.length > 90 ? 15000 : 5000); return () => clearTimeout(t); }, [toast]);
 
   const computed = useMemo(() => runSchedule(state, now), [state.tasks, state.events, state.settings, now]);
   const auto = state.settings.autoApply;

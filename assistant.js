@@ -320,7 +320,10 @@ function AssistantView(ctx) {
     setChecking(true);
     try {
       const res = await fetch(url + '/health', { cache: 'no-store' });
-      const info = await res.json();
+      const raw = await res.text();
+      let info;
+      try { info = JSON.parse(raw); }
+      catch (e) { setToast({ text: 'Hugging Face replied (' + res.status + '): ' + raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220), id: uid() }); return; }
       if (!info.configured) { setToast({ text: 'Found your Space, but its HF_TOKEN or STEWARD_KEY secret is missing', id: uid() }); return; }
       // An empty chat is rejected with 401 for a wrong key and 400 for a right one, without using any credits.
       const probe = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + spKey.trim(), 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
