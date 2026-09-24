@@ -164,6 +164,17 @@ def status_page():
 </body></html>"""
 
 
+# ZeroGPU hardware refuses to start an app without at least one @spaces.GPU function. This server
+# never needs a GPU (the models run on Hugging Face's inference servers), so register a no-op one.
+try:
+    import spaces
+
+    @spaces.GPU
+    def _zerogpu_placeholder():
+        return None
+except Exception:
+    pass
+
 # Spaces run `gradio app.py`, which launches the object named `demo`.
 demo = app
 
