@@ -182,6 +182,36 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .onb h1{font:700 34px/1.05 var(--f-display);letter-spacing:-.02em;margin:0 0 8px}
 .hrs{display:grid;grid-template-columns:60px 1fr auto 1fr;gap:8px;align-items:center}
 .mob{display:none}
+/* project page: description · properties · stages */
+.pd{display:grid;grid-template-columns:minmax(0,1.15fr) 260px minmax(0,1fr);gap:22px;align-items:start}
+.pd-desc{width:100%;min-height:110px;margin-top:10px;background:none;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;line-height:1.55;color:var(--ink);resize:vertical}
+.pd-props{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pd-health{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;display:flex;flex-direction:column;gap:2px;color:var(--good)}
+.pd-health.bad{color:var(--bad)}.pd-health small{color:var(--ink-3);font-weight:400}
+.props{display:grid;grid-template-columns:86px 1fr;gap:10px 10px;padding:14px;margin:0;align-items:center}
+.props dt{color:var(--ink-3);font-size:13px}.props dd{margin:0;min-width:0}.props .in{width:100%}
+.swatches{display:flex;gap:6px}.sw{width:20px;height:20px;border-radius:6px;border:2px solid transparent;padding:0}.sw.on{border-color:var(--ink)}
+.spill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.stl{position:relative;height:54px;margin:4px 6px 14px}
+.stl-line{position:absolute;left:0;right:0;top:22px;height:2px;background:var(--line-2);border-radius:2px}
+.stl-dot{position:absolute;top:16px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--surface);border:2px solid var(--c)}
+.stl-dot.done{background:var(--c)}
+.stl-today{position:absolute;top:0;bottom:18px;width:0;border-left:1px dashed var(--bad)}
+.stl-today span{position:absolute;top:-2px;left:4px;font:500 9.5px var(--f-mono);color:var(--bad);text-transform:uppercase;letter-spacing:.06em}
+.stl-dates{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;font:500 10.5px var(--f-mono);color:var(--ink-3)}
+.stg{border-top:1px solid var(--line);padding:12px 0 6px}
+.stg-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px}
+.stg-t{display:flex;align-items:center;gap:10px;padding:6px 2px}
+.stg-t .ck{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ink-3);background:none;display:grid;place-items:center;padding:0;flex:none}
+.stg-t .ck svg{width:12px;height:12px}
+.stg-t.dn .ck{background:var(--good);border-color:var(--good);color:#000}
+.stg-t .tt{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg-t.dn .tt{color:var(--ink-3);text-decoration:line-through}
+.stg-t .mono{font-size:11.5px;white-space:nowrap}
+.stg-plus{margin:4px 0}
+.stg-add{display:flex;gap:8px;margin:6px 0}.stg-add .in{flex:1;min-width:0}
+@media (max-width:1100px){.pd{grid-template-columns:minmax(0,1fr) 260px}.pd-tasks{grid-column:1 / -1}}
+@media (max-width:860px){.pd{grid-template-columns:1fr;gap:16px}.pd-tasks{order:2}.pd-props{order:3}.pd-desc{min-height:64px}}
 .nav .mlbl{display:none}
 .cmd textarea{flex:1;border:0;background:none;outline:none;padding:8px 0;font:inherit;font-size:15px;min-width:0;resize:none;line-height:1.4;max-height:40vh;color:inherit}
 .dump{margin-top:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -1062,7 +1092,7 @@ function ProjectsView(ctx) {
     </form>
     <div class="pgrid" style=${{ marginTop: '20px' }}>
       ${state.projects.map((p) => { const ts = state.tasks.filter((t) => t.projectId === p.id); const dn = ts.filter((t) => t.status === 'done').length; const end = Math.max(0, ...ts.filter((t) => t.status !== 'done').map((t) => (plan.info[t.id] || {}).end || 0)); const risk = p.deadline && end > p.deadline; const blocked = ts.filter((t) => t.status === 'blocked').length;
-        return html`<button key=${p.id} class="panel pcard" onClick=${() => setOpen(p.id)}>
+        return html`<button key=${p.id} class="panel pcard" style=${{ borderLeft: '3px solid ' + P_COLORS[p.color || 'gray'] }} onClick=${() => setOpen(p.id)}>
           <div class="muted mono" style=${{ fontSize: '11px' }}>${p.deadline ? 'Target ' + fmtD(p.deadline) : 'No target date'}${p.sample ? ' · example' : ''}</div>
           <h3>${p.name}</h3>
           <div class="bar" style=${{ marginTop: 0 }}><i style=${{ width: (ts.length ? dn / ts.length * 100 : 0) + '%' }}></i></div>
@@ -1073,25 +1103,108 @@ function ProjectsView(ctx) {
   </div>`;
 }
 
+const P_COLORS = { gray: '#8a8a8a', blue: '#6f9ce8', purple: '#a58be6', green: '#72c08a', amber: '#e0a24a', red: '#ec7b70' };
+const P_STATUS = { planning: 'Planning', active: 'In progress', hold: 'On hold', done: 'Done' };
+/* Stages in order: the project's saved list, then any stage names found only on tasks. */
+function projectStages(p, ts) {
+  const names = [...(p.stages || [])];
+  ts.forEach((t) => { if (t.stage && !names.includes(t.stage)) names.push(t.stage); });
+  if (ts.some((t) => !t.stage) || !names.length) names.push('');
+  return names;
+}
+
 function ProjectDetail(ctx) {
-  const { p, back, state, A, now, plan } = ctx;
+  const { p, back, state, A, now, plan, setDrawer, commit } = ctx;
+  const [adding, setAdding] = useState(null); // stage name receiving a new task
   const [nt, setNt] = useState('');
+  const [newStage, setNewStage] = useState(null);
   if (!p) { back(); return null; }
   const ts = state.tasks.filter((t) => t.projectId === p.id);
   const notes = state.notes.filter((n) => n.projectId === p.id);
+  const stages = projectStages(p, ts);
+  const info = (t) => plan.info[t.id] || {};
+  const open = ts.filter((t) => t.status !== 'done');
+  const finish = Math.max(0, ...open.map((t) => info(t).end || 0));
+  const late = open.some((t) => info(t).late) || (p.deadline && finish > p.deadline);
+  const done = ts.length - open.length;
+  const up = (patch) => A.updProject(p.id, patch);
+  const stageRange = (name) => {
+    const st = ts.filter((t) => (t.stage || '') === name);
+    const starts = st.map((t) => t.status === 'done' ? t.completed : info(t).first).filter(Boolean);
+    const ends = st.map((t) => t.status === 'done' ? t.completed : info(t).end || t.deadline).filter(Boolean);
+    return { start: starts.length ? Math.min(...starts) : null, end: ends.length ? Math.max(...ends) : null, total: st.length, done: st.filter((t) => t.status === 'done').length };
+  };
+  const current = stages.find((s) => { const r = stageRange(s); return r.total && r.done < r.total; });
+  const start = p.start || Math.min(p.created || now, ...ts.map((t) => info(t).first || t.created || now));
+  const addTask = (stage) => {
+    if (!nt.trim()) return;
+    const q = parseCommand(nt, state, Date.now());
+    A.addTask({ title: q.title || nt, duration: q.duration || 30, priority: q.priority || 'med', deadline: q.deadline || null, projectId: p.id, stage: stage || null });
+    setNt('');
+  };
+  const addStage = () => {
+    const name = (newStage || '').trim();
+    if (name && !stages.includes(name)) up({ stages: [...stages.filter(Boolean), name] });
+    setNewStage(null);
+  };
+  const newDoc = () => {
+    const n = { id: uid(), title: p.name + ' notes', body: '', projectId: p.id, updated: Date.now() };
+    A.saveNote(n); ctx.setView('notes');
+  };
+  // stage timeline: one dot per stage at its end date, plus today
+  const pts = stages.map((s) => ({ s, r: stageRange(s) })).filter((x) => x.r.total);
+  const t0 = Math.min(start, now), t1 = Math.max(now + DAY, p.deadline || 0, ...pts.map((x) => x.r.end || 0));
+  const pos = (t) => Math.max(0, Math.min(100, ((t - t0) / (t1 - t0)) * 100));
+  const color = P_COLORS[p.color || 'gray'];
+
   return html`<div>
     <button class="btn sm ghost" onClick=${back} style=${{ marginBottom: '10px' }}><${Icon} n="left" />Projects</button>
-    <input id="p-name" class="title-in" style=${{ fontSize: '30px' }} value=${p.name} onInput=${(e) => A.updProject(p.id, { name: e.target.value })} aria-label="Project name" />
-    <div style=${{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'end', margin: '12px 0 18px' }}>
-      <div class="fld"><label for="p-dl">Target date</label><input id="p-dl" type="date" class="in" value=${toLocalInput(p.deadline)} onChange=${(e) => A.updProject(p.id, { deadline: fromDateInput(e.target.value, true) })} /></div>
-      <div class="fld"><label for="p-st">Status</label><select id="p-st" class="in" value=${p.status} onChange=${(e) => A.updProject(p.id, { status: e.target.value })}><option value="active">Active</option><option value="done">Done</option></select></div>
-      <span style=${{ flex: 1 }}></span><button class="btn sm danger ghost" onClick=${() => { A.delProject(p.id); back(); }}>Delete project</button>
+    <div class="pd">
+      <section class="pd-main">
+        <input id="p-name" class="title-in" style=${{ fontSize: '28px' }} value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
+        <textarea class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project, and what does done look like?" aria-label="Project description"></textarea>
+        <div class="grp" style=${{ display: 'flex', alignItems: 'center' }}>Docs · ${notes.length}<span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${newDoc}><${Icon} n="plus" />Create doc</button></div>
+        <div class="panel rows">${notes.length ? notes.map((n) => html`<div key=${n.id} class="row click" onClick=${() => ctx.setView('notes')}><span></span><div class="t"><b>${n.title}</b><small>Updated ${relD(n.updated, now)}</small></div><span></span></div>`) : html`<div class="empty">No docs yet. Create one, or link a note to this project from Notes.</div>`}</div>
+        <button class="btn sm danger ghost" style=${{ marginTop: '18px' }} onClick=${() => { A.delProject(p.id); back(); }}>Delete project</button>
+      </section>
+
+      <section class="pd-props">
+        <div class=${'pd-health' + (late ? ' bad' : '')}>${ts.length ? (late ? 'Project is at risk' : p.status === 'done' ? 'Project is done' : 'Project is on track') : 'No tasks yet'}<small>${done}/${ts.length} done${finish ? ' · finishes ' + relD(finish, now) : ''}</small></div>
+        <dl class="props">
+          <dt>Status</dt><dd><select class="in" value=${p.status || 'active'} onChange=${(e) => up({ status: e.target.value })}>${Object.entries(P_STATUS).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></dd>
+          <dt>Stage</dt><dd>${current !== undefined ? html`<span class="spill" style=${{ '--c': color }}>${current || 'Tasks'}</span>` : html`<span class="muted">${ts.length ? 'All stages done' : '—'}</span>`}</dd>
+          <dt>Start date</dt><dd><input type="date" class="in" value=${toLocalInput(start)} onChange=${(e) => up({ start: fromDateInput(e.target.value) })} /></dd>
+          <dt>Deadline</dt><dd><input type="date" class="in" value=${toLocalInput(p.deadline)} onChange=${(e) => up({ deadline: fromDateInput(e.target.value, true) })} /></dd>
+          <dt>Priority</dt><dd><select class="in" value=${p.priority || 'med'} onChange=${(e) => up({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select></dd>
+          <dt>Color</dt><dd class="swatches">${Object.entries(P_COLORS).map(([k, c]) => html`<button key=${k} class=${'sw' + ((p.color || 'gray') === k ? ' on' : '')} style=${{ background: c }} onClick=${() => up({ color: k })} aria-label=${k}></button>`)}</dd>
+          <dt>Labels</dt><dd><input class="in" value=${(p.labels || []).join(', ')} onInput=${(e) => up({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="e.g. youth, fall" /></dd>
+        </dl>
+      </section>
+
+      <section class="pd-tasks">
+        <div class="grp" style=${{ marginTop: 0 }}>Tasks · ${ts.length}</div>
+        ${pts.length ? html`<div class="stl" aria-label="Stage timeline">
+          <div class="stl-line"></div>
+          <div class="stl-today" style=${{ left: pos(now) + '%' }}><span>Today</span></div>
+          ${pts.map((x) => html`<div key=${x.s} class=${'stl-dot' + (x.r.done === x.r.total ? ' done' : '')} style=${{ left: pos(x.r.end || now) + '%', '--c': color }} title=${(x.s || 'Tasks') + (x.r.end ? ' · ends ' + fmtD(x.r.end) : '')}></div>`)}
+          <div class="stl-dates"><span>${fmtD(t0).slice(4)}</span><span>${fmtD(t1).slice(4)}</span></div>
+        </div>` : null}
+        ${stages.map((s) => { const r = stageRange(s); const st = ts.filter((t) => (t.stage || '') === s).sort((a, b) => (a.status === 'done') - (b.status === 'done') || (info(a).first || 9e15) - (info(b).first || 9e15)); return html`<div key=${s} class="stg">
+          <div class="stg-h"><span class="spill" style=${{ '--c': color }}>${s || 'Tasks'}</span><span class="muted mono">${r.start ? fmtD(r.start).slice(0, 10) : ''}${r.end ? ' – ' + fmtD(r.end).slice(0, 10) : ''}</span></div>
+          ${st.map((t) => { const f = info(t).first; return html`<div key=${t.id} class=${'stg-t' + (t.status === 'done' ? ' dn' : '')}>
+            <button class="ck" onClick=${() => A.toggleDone(t.id)} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
+            <button class="tt" onClick=${() => setDrawer({ type: 'task', id: t.id })}>${t.title}</button>
+            <span class="muted mono">${fmtDur(t.duration || 30)}${t.status !== 'done' && f ? ' · ' + fmtD(f).slice(0, 10) : ''}</span>
+          </div>`; })}
+          ${adding === s
+            ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); addTask(s); }}><input autoFocus class="in" value=${nt} onInput=${(e) => setNt(e.target.value)} onBlur=${() => { if (!nt.trim()) setAdding(null); }} placeholder="New task — “call venue fri 30m”" aria-label="New task" /><button class="btn sm pri">Add</button></form>`
+            : html`<button class="btn sm ghost stg-plus" onClick=${() => { setAdding(s); setNt(''); }}><${Icon} n="plus" />Add task</button>`}
+        </div>`; })}
+        ${newStage !== null
+          ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); addStage(); }}><input autoFocus class="in" value=${newStage} onInput=${(e) => setNewStage(e.target.value)} placeholder="Stage name, e.g. Execution" aria-label="New stage" /><button class="btn sm pri">Add stage</button><button type="button" class="btn sm ghost" onClick=${() => setNewStage(null)}>Cancel</button></form>`
+          : html`<button class="btn sm ghost stg-plus" onClick=${() => setNewStage('')}><${Icon} n="plus" />Add stage</button>`}
+      </section>
     </div>
-    <form class="cmd" onSubmit=${(e) => { e.preventDefault(); if (!nt.trim()) return; const q = parseCommand(nt, state, Date.now()); A.addTask({ title: q.title || nt, duration: q.duration || 30, priority: q.priority || 'med', deadline: q.deadline || null, projectId: p.id }); setNt(''); }}>
-      <${Icon} n="plus" cls="muted" /><input id="p-add" value=${nt} onInput=${(e) => setNt(e.target.value)} placeholder="Add a task to this project — “confirm caterer by oct 30 45m”" /><button class="btn sm pri">Add</button></form>
-    <div class="grp">Tasks · ${ts.length}</div>
-    <div class="panel rows">${ts.length ? ts.sort((a, b) => ((plan.info[a.id] || {}).first || 9e15) - ((plan.info[b.id] || {}).first || 9e15)).map((t) => html`<${TaskRow} key=${t.id} t=${t} ...${ctx} />`) : html`<div class="empty">No tasks yet.</div>`}</div>
-    ${notes.length ? html`<div class="grp">Linked notes</div><div class="panel rows">${notes.map((n) => html`<div key=${n.id} class="row"><span></span><div class="t"><b>${n.title}</b><small>Updated ${relD(n.updated, now)}</small></div><span></span></div>`)}</div>` : null}
   </div>`;
 }
 
@@ -1112,7 +1225,7 @@ function DraftReview(ctx) {
       });
       stageLast[s.name] = ids;
     });
-    commit((st) => ({ ...st, projects: [...st.projects, { id: pid, name: d.name, deadline: d.target, status: 'active', created, goal: d.goal }], tasks: [...st.tasks, ...newTasks] }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
+    commit((st) => ({ ...st, projects: [...st.projects, { id: pid, name: d.name, deadline: d.target, status: 'active', created, goal: d.goal, stages: d.stages.map((s) => s.name) }], tasks: [...st.tasks, ...newTasks] }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
     setDraft(null);
   };
   const total = d.stages.reduce((a, s) => a + s.tasks.filter((t) => t.include).reduce((b, t) => b + t.duration, 0), 0);

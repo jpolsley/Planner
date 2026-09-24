@@ -267,8 +267,9 @@ const suggestionLines = (text) => text.split('\n').map((l) => l.match(/^\s*(?:[-
 const kinAIAvailable = () => kinCloudAvailable() || (kinLoad(KIN_PREF_KEY, {}).onDevice && kinAI.status === 'ready');
 function kinBarIntent(text) {
   if (/^\s*(show|filter|find|which|what|list)\b/i.test(text)) return 'filter';
-  const items = text.split(/\n|;|,|\band then\b|\balso\b/i).filter((x) => x.trim().split(/\s+/).length >= 2).length;
-  if (/\n/.test(text) || items >= 3 || text.trim().split(/\s+/).length > 14 || /^\s*(brain ?dump|dump)\b/i.test(text)) return 'dump';
+  const words = text.trim().split(/\s+/).length;
+  // More than one thing ("laundry and clean the kitchen"), several lines, or a long ramble → let the AI split it.
+  if (/\n|,|;|\band\b|\balso\b|\bthen\b|\bplus\b|&/i.test(text) || words > 8 || /^\s*(brain ?dump|dump)\b/i.test(text)) return 'dump';
   return 'command';
 }
 async function kinReady() {
@@ -282,7 +283,7 @@ async function kinBrainDump(text, state) {
   const facts = kinRecall(text, 8).map((m) => '- ' + m.text).join('\n');
   const sys = 'You turn a messy brain dump into clear, separate to-dos for a planner. Output ONLY task lines, one per line, each starting with "- ". '
     + 'Each line: a short title starting with a verb; then, when the dump implies them, a duration (e.g. 30m, 1h), a day or deadline (e.g. "by fri", "tomorrow", "oct 3"), and "high", "low" or "asap". '
-    + 'For a meeting or call at a set time write it like "Call Sam fri 2pm". Split combined items. Skip anything already in the existing list. No headings, numbering, or commentary.';
+    + 'For a meeting or call at a set time write it like "Call Sam fri 2pm". Every separate action is its own line: "do laundry and clean the kitchen" becomes "- Do laundry" and "- Clean the kitchen". Skip anything already in the existing list. No headings, numbering, or commentary.';
   const user = 'Today is ' + fmtD(now) + ' ' + fmtT(now) + '.\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + 'Existing open tasks:\n' + open + '\n\nBrain dump:\n' + text;
   const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 500, temperature: 0.2 });
   return suggestionLines(out).map((l) => l.replace(/^\[.\]\s*/, '').replace(/\s*[.;]$/, '')).filter((l) => l.length > 2).slice(0, 25);
