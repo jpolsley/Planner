@@ -263,6 +263,43 @@ const suggestionLines = (text) => text.split('\n').map((l) => l.match(/^\s*(?:[-
   else if (kinCloudAvailable()) kinAI.useCloud();
 }
 
+/* ---------- Today bar: brain dump → tasks, and plain-language filtering ---------- */
+const kinAIAvailable = () => kinCloudAvailable() || (kinLoad(KIN_PREF_KEY, {}).onDevice && kinAI.status === 'ready');
+function kinBarIntent(text) {
+  if (/^\s*(show|filter|find|which|what|list)\b/i.test(text)) return 'filter';
+  const items = text.split(/\n|;|,|\band then\b|\balso\b/i).filter((x) => x.trim().split(/\s+/).length >= 2).length;
+  if (/\n/.test(text) || items >= 3 || text.trim().split(/\s+/).length > 14 || /^\s*(brain ?dump|dump)\b/i.test(text)) return 'dump';
+  return 'command';
+}
+async function kinReady() {
+  if (kinAI.status !== 'ready') kinAI.load();
+  await kinAI.whenReady();
+}
+async function kinBrainDump(text, state) {
+  await kinReady();
+  const now = Date.now();
+  const open = state.tasks.filter((t) => t.status !== 'done').map((t) => '- ' + t.title).slice(0, 40).join('\n') || '(none)';
+  const facts = kinRecall(text, 8).map((m) => '- ' + m.text).join('\n');
+  const sys = 'You turn a messy brain dump into clear, separate to-dos for a planner. Output ONLY task lines, one per line, each starting with "- ". '
+    + 'Each line: a short title starting with a verb; then, when the dump implies them, a duration (e.g. 30m, 1h), a day or deadline (e.g. "by fri", "tomorrow", "oct 3"), and "high", "low" or "asap". '
+    + 'For a meeting or call at a set time write it like "Call Sam fri 2pm". Split combined items. Skip anything already in the existing list. No headings, numbering, or commentary.';
+  const user = 'Today is ' + fmtD(now) + ' ' + fmtT(now) + '.\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + 'Existing open tasks:\n' + open + '\n\nBrain dump:\n' + text;
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 500, temperature: 0.2 });
+  return suggestionLines(out).map((l) => l.replace(/^\[.\]\s*/, '').replace(/\s*[.;]$/, '')).filter((l) => l.length > 2).slice(0, 25);
+}
+async function kinFilterTasks(text, state) {
+  await kinReady();
+  const now = Date.now();
+  const open = state.tasks.filter((t) => t.status !== 'done').slice(0, 60);
+  if (!open.length) return [];
+  const list = open.map((t, i) => (i + 1) + '. ' + t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + relD(t.deadline, now) : '') + ((state.projects.find((p) => p.id === t.projectId) || {}).name ? ', project ' + state.projects.find((p) => p.id === t.projectId).name : '') + ')').join('\n');
+  const sys = 'You filter a task list. Reply with ONLY the numbers of the matching tasks, comma-separated, most relevant first, or NONE.';
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Today is ' + fmtD(now) + '.\nTasks:\n' + list + '\n\nRequest: ' + text }], baseSystem: sys, maxTokens: 80, temperature: 0.1 });
+  if (/none/i.test(out) && !/\d/.test(out)) return [];
+  const seen = new Set();
+  return (out.match(/\d+/g) || []).map(Number).filter((n) => n >= 1 && n <= open.length && !seen.has(n) && seen.add(n)).map((n) => open[n - 1].id);
+}
+
 function AssistantView(ctx) {
   const { state, plan, runCommand, setToast } = ctx;
   const [, force] = useState(0);
@@ -328,7 +365,8 @@ function AssistantView(ctx) {
       // An empty chat is rejected with 401 for a wrong key and 400 for a right one, without using any credits.
       const probe = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + spKey.trim(), 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
       if (probe.status === 401) { setToast({ text: 'That Steward key doesn’t match the one in your Space', id: uid() }); return; }
-      kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0 });
+      const idm = spUrl.trim().match(/([\w.-]+)\/([\w.-]+)\/?$/);
+      kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0, id: idm ? idm[1] + '/' + idm[2] : null });
       setSpUrl(''); setSpKey(''); restart();
       setToast({ text: 'Connected to your Space' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
     } catch (e) {
@@ -337,6 +375,8 @@ function AssistantView(ctx) {
   };
   const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
   const sp = kinSpace();
+  // Spaces connected before the id was saved: "user-name.hf.space" → "user/name" (usernames rarely contain hyphens).
+  if (sp && !sp.id) { const h = sp.url.replace(/^https:\/\//, '').replace(/\.hf\.space$/, ''); const i = h.indexOf('-'); if (i > 0) sp.id = h.slice(0, i) + '/' + h.slice(i + 1); }
 
   return html`<div>
     <header class="hdr"><div><div class="sub">Your planning AI · learns about you</div><h1>Assistant</h1></div><span class="grow"></span>
@@ -363,6 +403,7 @@ function AssistantView(ctx) {
           <b>${m && m.key === 'cloud' ? m.name : KIN_CLOUD_MODELS[0].name}</b>
           <span class="muted small">Ready · via your Space${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}</span>
           <span style=${{ flex: '1' }}></span>
+          ${sp.id ? html`<a class="btn sm ghost" href=${'https://huggingface.co/spaces/' + sp.id + '/upload/main/docs'} target="_blank" rel="noopener">Add documents</a>` : null}
           <button class="btn sm ghost" onClick=${disconnect}>Disconnect</button>
           <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>
         </div>`

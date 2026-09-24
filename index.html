@@ -1,46 +1,30 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Steward</title>
-<meta name="theme-color" content="#0f6e62">
+<meta name="theme-color" content="#000000">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
+/* Monochrome: black base, grey and white text; color only on tags (meetings, priorities, alerts). */
 :root{
-  --ground:#f3f5f2; --surface:#ffffff; --sunk:#e9ede8; --line:#d8ded7; --line-2:#c3cbc2;
-  --ink:#18201d; --ink-2:#4b5652; --ink-3:#7c8783;
-  --accent:#0f6e62; --accent-2:#0b5249; --accent-soft:#d5ebe6; --on-accent:#ffffff;
-  --meet:#4652a0; --meet-soft:#e1e4f5; --meet-ink:#2c3576;
-  --task:#0f6e62; --task-soft:#e3f1ed;
-  --warn:#a8680f; --warn-soft:#f7ead3; --bad:#b0392f; --bad-soft:#f6dedb; --good:#2f7d3b;
-  --shadow:0 1px 2px rgba(20,30,25,.06),0 8px 24px -12px rgba(20,30,25,.18);
+  color-scheme:dark;
+  --ground:#000000; --surface:#0c0c0c; --sunk:#161616; --line:#242424; --line-2:#363636;
+  --ink:#f2f2f2; --ink-2:#a6a6a6; --ink-3:#6e6e6e;
+  --accent:#f2f2f2; --accent-2:#ffffff; --accent-soft:#1f1f1f; --on-accent:#000000;
+  --meet:#8e96d8; --meet-soft:#1a1c2c; --meet-ink:#c9cdf2;
+  --task:#bdbdbd; --task-soft:#1a1a1a;
+  --warn:#e0a24a; --warn-soft:#2e2412; --bad:#ec7b70; --bad-soft:#331a18; --good:#7cc68a;
+  --shadow:none;
   --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --f-body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  color-scheme:dark;
-  --ground:#121715; --surface:#1a211e; --sunk:#0e1311; --line:#2a332f; --line-2:#3a4540;
-  --ink:#e6ece9; --ink-2:#a8b3ae; --ink-3:#78847f;
-  --accent:#3fb8a5; --accent-2:#6fd1c1; --accent-soft:#16352f; --on-accent:#08201c;
-  --meet:#8f9ae6; --meet-soft:#232849; --meet-ink:#c3c9f3;
-  --task:#3fb8a5; --task-soft:#15302b;
-  --warn:#e0a24a; --warn-soft:#3a2c14; --bad:#ec7b70; --bad-soft:#3e1d1a; --good:#6cc27a;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -12px rgba(0,0,0,.6);
-}}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --ground:#121715; --surface:#1a211e; --sunk:#0e1311; --line:#2a332f; --line-2:#3a4540;
-  --ink:#e6ece9; --ink-2:#a8b3ae; --ink-3:#78847f;
-  --accent:#3fb8a5; --accent-2:#6fd1c1; --accent-soft:#16352f; --on-accent:#08201c;
-  --meet:#8f9ae6; --meet-soft:#232849; --meet-ink:#c3c9f3;
-  --task:#3fb8a5; --task-soft:#15302b;
-  --warn:#e0a24a; --warn-soft:#3a2c14; --bad:#ec7b70; --bad-soft:#3e1d1a; --good:#6cc27a;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -12px rgba(0,0,0,.6);
 }
 html,body{height:100%}
 body{background:var(--ground);color:var(--ink);font:14px/1.45 var(--f-body);-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
+a.btn{text-decoration:none;color:inherit}
+input[type=checkbox],input[type=radio]{accent-color:var(--ink)}
 svg{width:18px;height:18px;flex:none}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 #root{height:100%}
@@ -49,7 +33,7 @@ svg{width:18px;height:18px;flex:none}
 .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;font:700 19px/1 var(--f-display);letter-spacing:-.01em}
 .brand i{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--on-accent);font:500 13px var(--f-mono);font-style:normal}
 .nav{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:0;background:none;text-align:left;color:var(--ink-2);font-weight:500}
-.nav:hover{background:var(--sunk);color:var(--ink)}
+@media (hover:hover){.nav:hover{background:var(--sunk);color:var(--ink)}}
 .nav.on{background:var(--accent-soft);color:var(--accent-2)}
 .nav svg{width:18px;height:18px;flex:none}
 .nav .ct{margin-left:auto;font:500 11px var(--f-mono);color:var(--ink-3)}
@@ -131,9 +115,7 @@ svg{width:18px;height:18px;flex:none}
 .blk{position:absolute;left:4px;right:4px;border-radius:8px;padding:4px 8px;font-size:12.5px;line-height:1.25;overflow:hidden;cursor:grab;touch-action:none;user-select:none;z-index:2}
 .blk b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .blk small{font:500 10.5px var(--f-mono);opacity:.8}
-.blk.ev{background:var(--meet);color:#fff;border:1px solid var(--meet)}
-:root[data-theme="dark"] .blk.ev{color:#10142e}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .blk.ev{color:#10142e}}
+.blk.ev{background:var(--meet);color:#0b0d1f;border:1px solid var(--meet)}
 .blk.tk{background:var(--task-soft);color:var(--ink);border:1.5px dashed var(--task)}
 .blk.tk.lock{border-style:solid}
 .blk.tk.late{border-color:var(--bad);background:var(--bad-soft)}
@@ -200,6 +182,14 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .onb h1{font:700 34px/1.05 var(--f-display);letter-spacing:-.02em;margin:0 0 8px}
 .hrs{display:grid;grid-template-columns:60px 1fr auto 1fr;gap:8px;align-items:center}
 .mob{display:none}
+.nav .mlbl{display:none}
+.cmd textarea{flex:1;border:0;background:none;outline:none;padding:8px 0;font:inherit;font-size:15px;min-width:0;resize:none;line-height:1.4;max-height:40vh;color:inherit}
+.dump{margin-top:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.dump .ph{border-bottom:1px solid var(--line)}
+.dump .it{display:flex;gap:10px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
+.dump .it:first-of-type{border-top:0}
+.dump .it input[type=text]{flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px;padding:6px 0}
+.dump .acts{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
 @media (max-width:860px){
   .app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   .rail{order:2;flex-direction:row;border-right:0;border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;gap:0}
@@ -211,8 +201,18 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
   .notes{grid-template-columns:1fr}
   .grid3{grid-template-columns:1fr 1fr}
   .hdr h1{font-size:25px}
+  /* phone: labelled bottom bar, fewer items, content before the timeline */
+  .rail{padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px))}
+  .nav{flex:1;min-width:0;padding:6px 2px;border-radius:10px;font-size:10px;align-items:center}
+  .nav .mlbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .nav.nomob{display:none}
+  .today .stack{order:-1}
+  .today{gap:16px;margin-top:16px}
+  .legend,.cmd .k{display:none}
+  .btn.sm{min-height:34px}
+  .wrap{padding-block:14px 28px}
+  .now h3{font-size:19px}
 }
-.nav .mlbl{display:none}
 @media (prefers-reduced-motion:no-preference){.blk,.nav,.btn{transition:background .15s,border-color .15s,box-shadow .15s}}
 </style>
 <div id="root"></div>
@@ -687,7 +687,7 @@ function App() {
     <nav class="rail" aria-label="Main">
       <div class="brand"><i>S</i>Steward</div>
       ${NAV.map(([k, l, ic, ct]) => html`<button key=${k} class=${'nav' + (view === k ? ' on' : '')} onClick=${() => setView(k)} aria-current=${view === k ? 'page' : null}><${Icon} n=${ic} /><span class="lbl">${l}</span><span class="mlbl">${l}</span>${ct ? html`<span class="ct">${ct}</span>` : null}</button>`)}
-      <button class="nav" onClick=${() => setSearch(true)}><${Icon} n="search" /><span class="lbl">Search</span><span class="mlbl">Search</span><span class="ct">⌘K</span></button>
+      <button class="nav nomob" onClick=${() => setSearch(true)}><${Icon} n="search" /><span class="lbl">Search</span><span class="mlbl">Search</span><span class="ct">⌘K</span></button>
       <div class="spacer"></div>
       <button class=${'nav' + (view === 'settings' ? ' on' : '')} onClick=${() => setView('settings')}><${Icon} n="gear" /><span class="lbl">Settings</span><span class="mlbl">Settings</span></button>
     </nav>
@@ -710,17 +710,63 @@ function App() {
 }
 
 /* ================= Command bar ================= */
-function CommandBar({ runCommand, log }) {
+function CommandBar(ctx) {
+  const { runCommand, log, state, plan, now, A, setDrawer } = ctx;
   const [v, setV] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [dump, setDump] = useState(null);     // { items: [{ id, text, on }] } awaiting review
+  const [filter, setFilter] = useState(null); // { q, ids }
+  const [err, setErr] = useState('');
   const ref = useRef();
   useEffect(() => { const k = (e) => { if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); ref.current && ref.current.focus(); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+  useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }, [v]);
+  const aiOn = typeof kinAIAvailable === 'function' && kinAIAvailable();
+  const submit = async () => {
+    const text = v.trim();
+    if (!text || busy) return;
+    const kind = aiOn ? kinBarIntent(text) : 'command';
+    if (kind === 'command') { runCommand(text); setV(''); return; }
+    setBusy(true); setErr('');
+    try {
+      if (kind === 'filter') {
+        const ids = await kinFilterTasks(text, state);
+        setFilter({ q: text, ids }); setDump(null);
+      } else {
+        const lines = await kinBrainDump(text, state);
+        if (!lines.length) setErr('Steward didn’t find any tasks in that. Try listing a few things you need to do.');
+        else { setDump({ items: lines.map((t) => ({ id: uid(), text: t, on: true })) }); setFilter(null); }
+      }
+      setV('');
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setBusy(false); }
+  };
+  const addDump = () => {
+    dump.items.filter((x) => x.on && x.text.trim()).forEach((x) => runCommand(x.text.trim()));
+    setDump(null);
+  };
+  const edit = (id, patch) => setDump((d) => ({ items: d.items.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+  const byId = Object.fromEntries(state.tasks.map((t) => [t.id, t]));
+  const onCount = dump ? dump.items.filter((x) => x.on).length : 0;
   return html`<div>
-    <form class="cmd" onSubmit=${(e) => { e.preventDefault(); runCommand(v); setV(''); }}>
+    <form class="cmd" onSubmit=${(e) => { e.preventDefault(); submit(); }}>
       <${Icon} n="spark" cls="muted" />
-      <input id="cmd" ref=${ref} value=${v} onInput=${(e) => setV(e.target.value)} placeholder="Tell Steward: “give the dog a bath today”, “call Sam fri 2pm”, “plan a youth retreat by nov 15”" aria-label="Tell Steward what to add or plan" autocomplete="off" />
+      <textarea id="cmd" ref=${ref} rows="1" value=${v} onInput=${(e) => setV(e.target.value)}
+        onKeyDown=${(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+        placeholder=${aiOn ? 'Brain dump what’s on your mind, or “show what’s urgent”' : 'Add a task: “call Sam fri 2pm”'}
+        aria-label="Tell Steward what to add, plan, or find" autocomplete="off"></textarea>
       <span class="k">/</span>
-      <button class="btn pri sm" type="submit">Go</button>
+      <button class="btn pri sm" type="submit" disabled=${busy}>${busy ? 'Thinking…' : 'Go'}</button>
     </form>
+    ${err ? html`<div class="log"><div class="logline"><span class="tag err">Error</span><span>${err}</span></div></div>` : null}
+    ${dump ? html`<div class="dump" aria-label="Tasks from your brain dump">
+      <div class="ph"><h2>${dump.items.length} task${dump.items.length === 1 ? '' : 's'} from your brain dump</h2></div>
+      ${dump.items.map((x) => html`<label class="it" key=${x.id}><input type="checkbox" checked=${x.on} onChange=${(e) => edit(x.id, { on: e.target.checked })} aria-label="Include" /><input type="text" value=${x.text} onInput=${(e) => edit(x.id, { text: e.target.value })} aria-label="Task" /></label>`)}
+      <div class="acts"><button class="btn pri sm" onClick=${addDump} disabled=${!onCount}>Add ${onCount} to my plan</button><button class="btn sm ghost" onClick=${() => setDump(null)}>Discard</button><span class="muted" style=${{ fontSize: '12px', alignSelf: 'center' }}>Edit any line first. “30m”, “fri”, “high” are understood.</span></div>
+    </div>` : null}
+    ${filter ? html`<div class="dump" aria-label="Filtered tasks">
+      <div class="ph"><h2>${filter.ids.length ? filter.ids.length + ' match' + (filter.ids.length === 1 ? '' : 'es') : 'No matches'} · “${filter.q}”</h2><span class="grow"></span><button class="btn sm ghost" onClick=${() => setFilter(null)}>Clear</button></div>
+      <div class="rows">${filter.ids.map((id) => byId[id] ? html`<${TaskRow} key=${id} t=${byId[id]} plan=${plan} now=${now} A=${A} setDrawer=${setDrawer} state=${state} />` : null)}</div>
+    </div>` : null}
     ${log.length ? html`<div class="log" aria-live="polite">${log.slice(0, 3).map((l) => html`<div class="logline" key=${l.id}><span class=${'tag ' + l.tag}>${{ done: 'Done', prop: 'Proposed', sugg: 'Suggestion', err: 'Conflict' }[l.tag]}</span><span>${l.text}</span></div>`)}</div>` : null}
   </div>`;
 }
@@ -836,7 +882,7 @@ function TodayView(ctx) {
 
   return html`<div>
     <header class="hdr"><div><div class="sub">${fmtD(now)} · ${fmtDur(Math.round(plannedMin))} of focus planned · ${doneToday} done</div><h1>${greeting}, JP.</h1></div></header>
-    <${CommandBar} runCommand=${runCommand} log=${log} />
+    <${CommandBar} ...${ctx} />
     ${state.hasSample ? html`<p class="muted" style=${{ fontSize: '12.5px', margin: '10px 2px 0' }}>Showing example tasks and meetings so you can see how it works. Clear them any time in Settings.</p>` : null}
     <div class="today">
       <section class="panel" aria-label="Today's timeline">
@@ -924,7 +970,7 @@ function TasksView(ctx) {
   else { const f = (t) => (plan.info[t.id] || {}).first; groups = [['Scheduled', list.filter((t) => f(t)).sort((a, b) => f(a) - f(b))], ['Not placed', list.filter((t) => !f(t) && t.status !== 'done')], ['Done', list.filter((t) => t.status === 'done')]]; }
   return html`<div>
     <header class="hdr"><div><div class="sub">${state.tasks.filter((t) => t.status !== 'done').length} open</div><h1>Tasks</h1></div></header>
-    <${CommandBar} runCommand=${runCommand} log=${log} />
+    <${CommandBar} ...${ctx} />
     <div style=${{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '18px 0 4px', alignItems: 'center' }}>
       <div class="chips">${[['open', 'Open'], ['blocked', 'Blocked'], ['done', 'Done'], ['all', 'All']].map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>
       <span class="muted" style=${{ fontSize: '12px' }}>Group by</span>
