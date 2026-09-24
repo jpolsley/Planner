@@ -6,7 +6,7 @@ A small server between the Steward app and Hugging Face:
 - adds the most relevant passages from the files in docs/ to each chat
 - streams replies from a large hosted model, trying the next model if one is unavailable
 
-Runs on a free Gradio Space: the API lives on FastAPI, with a small Gradio status page mounted at /.
+Runs on a free Gradio Space using Gradio's Server mode (gr.Server is a FastAPI app that Spaces launches).
 Space secrets: HF_TOKEN (fine-grained, "Make calls to Inference Providers"), STEWARD_KEY (any long passphrase).
 Optional variables: MODELS (comma-separated model ids), ALLOWED_ORIGINS (comma-separated).
 """
@@ -18,10 +18,9 @@ from pathlib import Path
 
 import httpx
 import gradio as gr
-import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 STEWARD_KEY = os.environ.get("STEWARD_KEY", "")
@@ -32,7 +31,7 @@ ORIGINS = [o.strip() for o in os.environ.get(
 ROUTER = os.environ.get("HF_ROUTER", "https://router.huggingface.co/v1/chat/completions")
 DOCS_DIR = Path(__file__).parent / "docs"
 
-app = FastAPI()
+app = gr.Server(title="Steward")
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"], expose_headers=["X-Steward-Model"])
 
 
@@ -149,24 +148,21 @@ async def chat(request: Request):
 
 
 # ---------- status page (what you see on the Space's page) ----------
-def _status_md():
+@app.get("/", response_class=HTMLResponse)
+def status_page():
     h = health()
     docs = sorted({c["source"] for c in CHUNKS})
-    return "\n".join([
-        "# 🧭 Steward's AI server",
-        "**Status:** " + ("✅ Ready. Connect Steward with this Space's name and your STEWARD_KEY." if h["configured"]
-                          else "⚠️ Add the **HF_TOKEN** and **STEWARD_KEY** secrets in Settings → Variables and secrets, then restart."),
-        "",
-        "**Models, in order:** " + ", ".join(MODELS),
-        "",
-        "**Documents in docs/:** " + (", ".join(docs) if docs else "none yet. Upload .txt, .md or .pdf files to the docs folder."),
-    ])
+    status = ("✅ Ready. Connect Steward with this Space's name and your STEWARD_KEY." if h["configured"]
+              else "⚠️ Add the <b>HF_TOKEN</b> and <b>STEWARD_KEY</b> secrets in Settings → Variables and secrets, then restart the Space.")
+    esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;")
+    return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Steward</title><style>body{{font:16px/1.6 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#18201d;background:#f3f5f2}}
+@media (prefers-color-scheme:dark){{body{{color:#e6ece9;background:#121715}}}}</style></head><body>
+<h1>🧭 Steward's AI server</h1><p><b>Status:</b> {status}</p>
+<p><b>Models, in order:</b> {esc(", ".join(MODELS))}</p>
+<p><b>Documents in docs/:</b> {esc(", ".join(docs)) if docs else "none yet. Upload .txt, .md or .pdf files to the docs folder."}</p>
+</body></html>"""
 
-
-with gr.Blocks(title="Steward") as status_page:
-    gr.Markdown(_status_md())
-
-app = gr.mount_gradio_app(app, status_page, path="/")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    app.launch()
