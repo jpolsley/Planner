@@ -29,7 +29,11 @@ function kinSpaceUrl(input) {
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
-const KIN_BASE = 'You are Steward, a personal planning assistant inside the user\'s planner. You know the user and get to know them better over time. Be clear, practical, warm, and honest. Help the user prioritize and take manageable next steps, and tailor advice to what you know about them. Keep replies short. When you suggest new tasks, put each on its own line starting with "- " and include a duration like 30m and a day if relevant. Use only the facts and planner snapshot below; never invent tasks, meetings, or facts about the user.';
+const KIN_BASE = 'You are Steward, a thoughtful personal assistant and thinking partner who lives inside the user\'s planner. You know the user and get to know them better over time. '
+  + 'First understand the full picture: what they are really asking, why it matters to them, and the context from what you know about them, their documents, and their planner. '
+  + 'Answer the actual question in natural, warm, conversational prose. Explain, reflect, and give perspective; when something is unclear or you need more context, ask one or two good questions instead of guessing. '
+  + 'Do NOT turn every reply into a to-do list. Only suggest tasks when the user asks for tasks or a plan, or when a few concrete next steps would clearly help; then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant. '
+  + 'Use the facts, documents, and planner snapshot provided; quote or cite documents by file name when you use them; never invent tasks, meetings, documents, or facts about the user. Keep replies focused unless the user wants depth.';
 
 const kinLoad = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const kinSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -141,7 +145,7 @@ const kinAI = {
   },
   unload() { if (this.engine) this.engine.terminate(); this.set({ engine: null, status: 'idle', model: null }); },
   /* Runs one generation at a time; later calls wait their turn. */
-  ask({ messages, baseSystem, maxTokens = 320, temperature = 0.6, onChunk }) {
+  ask({ messages, baseSystem, maxTokens = 320, temperature = 0.6, onChunk, docs = true }) {
     const local = () => new Promise((resolve, reject) => {
       if (this.status !== 'ready') { reject(new Error('The model is not loaded.')); return; }
       const requestId = uid();
@@ -153,7 +157,7 @@ const kinAI = {
       this.set({ generating: true });
       try {
         if (this.device === 'cloud') {
-          try { return await kinCloudChat({ messages, maxTokens, temperature, onChunk }); }
+          try { return await kinCloudChat({ messages, maxTokens, temperature, onChunk, docs }); }
           catch (e) { if (e.name === 'AbortError' || e.partial) throw e; throw new Error('Your Space: ' + e.message); }
         }
         return await local();
@@ -176,7 +180,7 @@ const kinAI = {
 };
 
 /* Streams a reply from Hugging Face's OpenAI-compatible router, moving down the model list if one isn't offered. */
-async function kinCloudChat({ messages, maxTokens, temperature, onChunk }) {
+async function kinCloudChat({ messages, maxTokens, temperature, onChunk, docs = true }) {
   const sp = kinSpace();
   const ctrl = new AbortController(); kinAI.abort = ctrl;
   let res;
@@ -184,7 +188,7 @@ async function kinCloudChat({ messages, maxTokens, temperature, onChunk }) {
     res = await fetch(sp.url + '/v1/chat/completions', {
       method: 'POST', signal: ctrl.signal,
       headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, max_tokens: maxTokens, temperature }),
+      body: JSON.stringify({ messages, max_tokens: maxTokens, temperature, use_docs: docs }),
     });
   } catch (e) { kinAI.abort = null; if (e.name === 'AbortError') throw e; throw new Error('couldn’t reach your Space. It may be asleep or still starting'); }
   if (!res.ok) {
@@ -224,7 +228,7 @@ async function kinLearnFrom(userText, reply) {
   if (userText.trim().split(/\s+/).length < 4) return [];
   const known = kinRecall(userText, 20).map((m) => '- ' + m.text).join('\n') || '(none)';
   const prompt = 'Read the user\'s message and list any NEW lasting facts about the user that would help plan their life: their role or work, routines, energy and schedule habits, goals, important people, likes and dislikes, constraints. Write each as a short sentence starting with "You", on its own line starting with "- ". Skip one-off requests, questions, and anything already known. If there is nothing new, write NONE.\n\nAlready known:\n' + known + '\n\nUser message:\n' + userText;
-  const text = await kinAI.ask({ messages: [{ role: 'system', content: 'You extract facts. Output only the list or NONE.' }, { role: 'user', content: prompt }], maxTokens: 90, temperature: 0 });
+  const text = await kinAI.ask({ messages: [{ role: 'system', content: 'You extract facts. Output only the list or NONE.' }, { role: 'user', content: prompt }], maxTokens: 90, temperature: 0, docs: false });
   if (/^\s*none\b/i.test(text)) return [];
   return text.split('\n').map((l) => l.match(/^\s*[-*•]\s*(You\b.{3,180})$/i)).filter(Boolean)
     .map((m) => kinMem.add(m[1].replace(/\.?\s*$/, '.'), 'chat')).filter(Boolean).slice(0, 3);
@@ -254,6 +258,11 @@ function kinSystem(state, plan, userText) {
     + '\n\nPlanner snapshot:\n' + plannerSnapshot(state, plan, Date.now());
 }
 
+/* Chat replies: only lines under a "Suggested tasks:" heading become + Add buttons. */
+function chatTaskLines(text) {
+  const m = String(text).split(/\n\s*\**suggested (?:next )?tasks?\**:?\**\s*\n/i);
+  return m.length > 1 ? suggestionLines(m[m.length - 1]) : [];
+}
 const suggestionLines = (text) => text.split('\n').map((l) => l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.{3,160})$/)).filter(Boolean).map((m) => m[1].replace(/\*\*/g, '').trim());
 
 /* Load automatically on startup once the user has opted in. */
@@ -295,7 +304,7 @@ async function kinFilterTasks(text, state) {
   if (!open.length) return [];
   const list = open.map((t, i) => (i + 1) + '. ' + t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + relD(t.deadline, now) + (t.hard ? ' (hard)' : '') : '') + (t.status === 'doing' ? ', in progress' : '') + ((t.labels || []).length ? ', labels ' + t.labels.join('/') : '') + ((state.projects.find((p) => p.id === t.projectId) || {}).name ? ', project ' + state.projects.find((p) => p.id === t.projectId).name : '') + ')').join('\n');
   const sys = 'You filter a task list. Reply with ONLY the numbers of the matching tasks, comma-separated, most relevant first, or NONE.';
-  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Today is ' + fmtD(now) + '.\nTasks:\n' + list + '\n\nRequest: ' + text }], baseSystem: sys, maxTokens: 80, temperature: 0.1 });
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Today is ' + fmtD(now) + '.\nTasks:\n' + list + '\n\nRequest: ' + text }], baseSystem: sys, maxTokens: 80, temperature: 0.1, docs: false });
   if (/none/i.test(out) && !/\d/.test(out)) return [];
   const seen = new Set();
   return (out.match(/\d+/g) || []).map(Number).filter((n) => n >= 1 && n <= open.length && !seen.has(n) && seen.add(n)).map((n) => open[n - 1].id);
@@ -390,7 +399,7 @@ function AssistantView(ctx) {
     setInput('');
     let reply = '';
     try {
-      reply = await kinAI.ask({ messages: [{ role: 'system', content: kinSystem(state, plan, text) }, ...history], baseSystem: KIN_BASE, onChunk: (c) => patch(id, (x) => ({ content: x.content + c })) });
+      reply = await kinAI.ask({ messages: [{ role: 'system', content: kinSystem(state, plan, text) }, ...history], baseSystem: KIN_BASE, maxTokens: 700, onChunk: (c) => patch(id, (x) => ({ content: x.content + c })) });
       patch(id, (x) => ({ content: reply || x.content, pending: false }));
     } catch (e) { patch(id, (x) => ({ content: (e.partial || x.content) + '\n[Error: ' + e.message + ']', pending: false })); return; }
     if (prefs.learn || /^\s*(please\s+)?remember\b/i.test(text)) {
@@ -482,7 +491,7 @@ function AssistantView(ctx) {
         ${!msgs.length ? html`<p class="muted small">Talk to Steward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
           <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.content || (x.pending ? '…' : '')}</div>
-          ${x.role === 'assistant' && !x.pending ? suggestionLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
+          ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
           ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
         </div>`)}
         ${pendingText ? html`<div style=${{ alignSelf: 'flex-end', maxWidth: '85%' }}><div style=${{ whiteSpace: 'pre-wrap', padding: '10px 13px', borderRadius: '12px', background: 'var(--accent-soft)' }}>${pendingText}</div><div class="small muted" style=${{ marginTop: '4px', textAlign: 'right' }}>Steward is loading, and will reply when it’s ready…</div></div>` : null}
