@@ -6,6 +6,7 @@ A small server between the Steward app and Hugging Face:
 - adds the most relevant passages from the files in docs/ to each chat
 - streams replies from a large hosted model, trying the next model if one is unavailable
 
+Runs on a free Gradio Space: the API lives on FastAPI, with a small Gradio status page mounted at /.
 Space secrets: HF_TOKEN (fine-grained, "Make calls to Inference Providers"), STEWARD_KEY (any long passphrase).
 Optional variables: MODELS (comma-separated model ids), ALLOWED_ORIGINS (comma-separated).
 """
@@ -16,6 +17,8 @@ import secrets
 from pathlib import Path
 
 import httpx
+import gradio as gr
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -85,7 +88,7 @@ def _authorized(request: Request) -> bool:
     return bool(STEWARD_KEY) and secrets.compare_digest(given, STEWARD_KEY)
 
 
-@app.get("/")
+@app.get("/health")
 def health():
     return {"ok": True, "configured": bool(HF_TOKEN and STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS}
 
@@ -143,3 +146,27 @@ async def chat(request: Request):
     await client.aclose()
     status = 402 if " 402 " in last_error else 401 if " 401 " in last_error else 502
     return JSONResponse({"error": last_error}, status_code=status)
+
+
+# ---------- status page (what you see on the Space's page) ----------
+def _status_md():
+    h = health()
+    docs = sorted({c["source"] for c in CHUNKS})
+    return "\n".join([
+        "# 🧭 Steward's AI server",
+        "**Status:** " + ("✅ Ready. Connect Steward with this Space's name and your STEWARD_KEY." if h["configured"]
+                          else "⚠️ Add the **HF_TOKEN** and **STEWARD_KEY** secrets in Settings → Variables and secrets, then restart."),
+        "",
+        "**Models, in order:** " + ", ".join(MODELS),
+        "",
+        "**Documents in docs/:** " + (", ".join(docs) if docs else "none yet. Upload .txt, .md or .pdf files to the docs folder."),
+    ])
+
+
+with gr.Blocks(title="Steward") as status_page:
+    gr.Markdown(_status_md())
+
+app = gr.mount_gradio_app(app, status_page, path="/")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=7860)
