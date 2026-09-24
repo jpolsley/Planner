@@ -58,7 +58,7 @@ def _load_chunks():
         for i in range(0, len(text), 900):
             piece = text[i:i + 1000]
             if piece:
-                chunks.append({"source": path.name, "text": piece, "terms": _terms(piece)})
+                chunks.append({"source": path.name, "text": piece, "terms": _terms(piece), "name_terms": _terms(re.sub(r"[_().\d-]+", " ", path.stem))})
     print(f"Loaded {len(chunks)} passages from docs/")
     return chunks
 
@@ -73,12 +73,28 @@ def _terms(text: str) -> set:
 CHUNKS = _load_chunks()
 
 
-def relevant_passages(query: str, limit: int = 4):
+def relevant_passages(query: str, limit: int = 6):
+    """Score passages by shared words, with a strong boost when the question names the file
+    ("my job description" -> "Job Description_.txt"). Returns the best few with any real match."""
     q = _terms(query)
     if not q or not CHUNKS:
         return []
-    scored = sorted(((len(q & c["terms"]), c) for c in CHUNKS), key=lambda x: -x[0])
-    return [c for score, c in scored[:limit] if score >= 2]
+    def score(c):
+        body = len(q & c["terms"])
+        name = len(q & c["name_terms"])
+        return body + (6 * name if name else 0)
+    scored = sorted(((score(c), i, c) for i, c in enumerate(CHUNKS)), key=lambda x: (-x[0], x[1]))
+    top = scored[0][0] if scored else 0
+    best = [c for sc, _, c in scored[:limit] if sc >= max(1, top / 2)]
+    # a named file: keep its passages in reading order
+    return sorted(best, key=lambda c: (c["source"], CHUNKS.index(c)))
+
+
+def documents_note():
+    names = sorted({c["source"] for c in CHUNKS})
+    return ("The user has uploaded these documents: " + ", ".join(names) + ". "
+            "Relevant passages are included below when they match the conversation; if the user asks about a document "
+            "and no passage is shown, say which document you would need and ask them to mention it by name.") if names else ""
 
 
 # ---------- API ----------
@@ -103,11 +119,14 @@ async def chat(request: Request):
     if not messages:
         return JSONResponse({"error": "No messages."}, status_code=400)
 
-    last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    passages = relevant_passages(str(last_user))
+    recent_user = [str(m["content"]) for m in messages if m["role"] == "user"][-2:]
+    use_docs = body.get("use_docs", True) is not False
+    passages = relevant_passages(" ".join(recent_user)) if use_docs else []
+    note = ("\n\n" + documents_note()) if CHUNKS and use_docs else ""
     if passages:
         docs = "\n\n".join(f"[{p['source']}] {p['text']}" for p in passages)
-        note = "\n\nRelevant passages from the user's documents (cite the file name when you use them):\n" + docs
+        note += "\n\nRelevant passages from the user's documents (cite the file name when you use them):\n" + docs
+    if note:
         if messages[0]["role"] == "system":
             messages[0] = {"role": "system", "content": str(messages[0]["content"]) + note}
         else:
