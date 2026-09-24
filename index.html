@@ -182,6 +182,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .onb h1{font:700 34px/1.05 var(--f-display);letter-spacing:-.02em;margin:0 0 8px}
 .hrs{display:grid;grid-template-columns:60px 1fr auto 1fr;gap:8px;align-items:center}
 .mob{display:none}
+.lbl-pill{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);font-size:11px;line-height:16px}
 /* project page: description · properties · stages */
 .pd{display:grid;grid-template-columns:minmax(0,1.15fr) 260px minmax(0,1fr);gap:22px;align-items:start}
 .pd-desc{width:100%;min-height:110px;margin-top:10px;background:none;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;line-height:1.55;color:var(--ink);resize:vertical}
@@ -353,7 +354,7 @@ function runSchedule(state, now) {
       [...pending].forEach((id) => { info[id] = { unscheduled: true, reason: 'Dependency loop — check this task’s “waits on” list.' }; });
       break;
     }
-    ready.sort((a, b) => ((a.priority === 'asap' ? 0 : 1) - (b.priority === 'asap' ? 0 : 1)) || (softDeadline(a, now) - softDeadline(b, now)) || (PRI[a.priority] - PRI[b.priority]) || (a.created - b.created));
+    ready.sort((a, b) => ((a.priority === 'asap' ? 0 : 1) - (b.priority === 'asap' ? 0 : 1)) || ((a.hard && a.deadline ? 0 : 1) - (b.hard && b.deadline ? 0 : 1)) || (softDeadline(a, now) - softDeadline(b, now)) || (PRI[a.priority] - PRI[b.priority]) || (a.created - b.created));
     const t = ready[0];
     pending.delete(t.id); placed.add(t.id);
     let need = remaining[t.id];
@@ -403,7 +404,7 @@ function attention(state, plan, now) {
       const over = Math.round((inf.end - t.deadline) / MIN);
       const beforeIt = plan.blocks.filter((b) => b.start < t.deadline && !b.locked && byId[b.taskId] && b.taskId !== t.id && (!byId[b.taskId].deadline || byId[b.taskId].deadline > t.deadline));
       const bump = beforeIt.length ? byId[beforeIt[0].taskId] : null;
-      out.push({ sev: 'bad', kind: 'late', task: t, projected: inf.end, bump, title: 'At risk: ' + t.title, text: 'Due ' + relD(t.deadline, now) + ' ' + fmtT(t.deadline) + ', but the earliest it can finish is ' + relD(inf.end, now) + ' ' + fmtT(inf.end) + '.' + (over ? '' : '') });
+      out.push({ sev: t.hard ? 'bad' : 'warn', kind: 'late', task: t, projected: inf.end, over, bump, title: (t.hard ? 'Hard deadline at risk: ' : 'Will slip: ') + t.title, text: 'Due ' + relD(t.deadline, now) + ' ' + fmtT(t.deadline) + ', but the earliest it can finish is ' + relD(inf.end, now) + ' ' + fmtT(inf.end) + '.' + (over ? '' : '') });
     }
     const blockedBy = (t.deps || []).map((d) => byId[d]).filter((d) => d && d.status === 'blocked');
     if (t.status === 'blocked') out.push({ sev: 'warn', kind: 'blocked', task: t, title: 'Blocked: ' + t.title, text: t.blockedNote || 'Marked blocked. It stays scheduled so the time is held.' });
@@ -414,7 +415,7 @@ function attention(state, plan, now) {
     if (p.status === 'done' || !p.deadline) return;
     const ts = state.tasks.filter((t) => t.projectId === p.id && t.status !== 'done');
     const end = Math.max(0, ...ts.map((t) => (plan.info[t.id] || {}).end || 0));
-    if (end > p.deadline) out.push({ sev: 'warn', kind: 'project', project: p, title: 'Project at risk: ' + p.name, text: 'Current plan finishes ' + relD(end, now) + ', after the ' + fmtD(p.deadline) + ' target.' });
+    if (end > p.deadline) out.push({ sev: 'warn', kind: 'project', project: p, projected: end, title: 'Project at risk: ' + p.name, text: 'Current plan finishes ' + relD(end, now) + ', after the ' + fmtD(p.deadline) + ' target.' });
   });
   return out;
 }
@@ -516,6 +517,20 @@ const GENERIC = { kind: 'Project', stages: [
   ['Finish', [['Review, wrap up and share the result', 45, 'Do']]],
 ], assume: ['Every task is assigned to you.', 'Durations are rough first estimates.'], ask: 'What would make this project clearly successful?' };
 
+async function planProject(goal, state, setToast) {
+  if (typeof kinAIAvailable === 'function' && kinAIAvailable()) {
+    try { return await kinDraftProject(goal, state); }
+    catch (e) { setToast && setToast({ text: 'AI planning failed (' + (e.message || e) + '), so I used a template instead', id: uid() }); }
+  }
+  return draftProject(goal, state, Date.now());
+}
+async function extractNote(note, state, setToast) {
+  if (typeof kinAIAvailable === 'function' && kinAIAvailable()) {
+    try { return await kinExtractNote(note, state); }
+    catch (e) { setToast && setToast({ text: 'AI reading failed (' + (e.message || e) + '), so I used the built-in rules', id: uid() }); }
+  }
+  return extractFromNote(note, state, Date.now());
+}
 function draftProject(goal, state, now) {
   const w = parseWhen(goal, now);
   const bp = BLUEPRINTS.find((b) => b.match.test(goal)) || GENERIC;
@@ -692,14 +707,14 @@ function App() {
     if (!text.trim()) return;
     const p = parseCommand(text, state, Date.now());
     if (p.kind === 'search') { setSearch(p.q || true); return; }
-    if (p.kind === 'plan') { setDraft(draftProject(p.goal, state, Date.now())); setView('projects'); say([{ tag: 'prop', text: 'Drafted a plan for “' + p.goal + '” — review it in Projects before anything is created.' }]); return; }
+    if (p.kind === 'plan') { say([{ tag: 'sugg', text: 'Drafting a plan for “' + p.goal + '”…' }]); planProject(p.goal, state, setToast).then((d) => { setDraft(d); setView('projects'); say([{ tag: 'prop', text: 'Drafted a plan for “' + p.goal + '”. Review it in Projects before anything is created.' }]); }); return; }
     if (p.kind === 'event') {
       const clash = state.events.find((e) => e.start < p.end && e.end > p.start);
       const e = A.addEvent({ title: p.title, start: p.start, end: p.end });
       say([{ tag: 'done', text: 'Added meeting “' + e.title + '” · ' + relD(e.start, now) + ' ' + fmtT(e.start) + '–' + fmtT(e.end) + '. Flexible work around it was reflowed.' }, ...(clash ? [{ tag: 'sugg', text: 'Overlaps “' + clash.title + '”. Steward didn’t move either — adjust one if needed.' }] : [])]);
       return;
     }
-    const t = A.addTask({ title: p.title, duration: p.duration, priority: p.priority, deadline: p.deadline, projectId: p.projectId });
+    const t = A.addTask({ title: p.title, duration: p.duration, priority: p.priority, deadline: p.deadline, projectId: p.projectId, hard: !!(p.hard && p.deadline) });
     const sched = runSchedule({ ...state, tasks: [...state.tasks, t] }, Date.now());
     const inf = sched.info[t.id] || {};
     const where = auto ? (inf.first ? 'scheduled ' + relD(inf.first, now) + ' ' + fmtT(inf.first) : 'not placed yet') : 'will be placed when you apply the plan';
@@ -944,9 +959,11 @@ function AlertRow({ a, A, now, setDrawer, setView }) {
   return html`<div class=${'alert ' + a.sev}><span class="sev"></span><div><b>${a.title}</b><p>${a.text}</p><div class="acts">
     ${a.kind === 'late' ? html`<button class="btn sm" onClick=${() => A.updTask(t.id, { deadline: Math.ceil(a.projected / (30 * MIN)) * 30 * MIN }, 'Deadline moved to ' + fmtD(a.projected))}>Move deadline to ${relD(a.projected, now)}</button>
       <button class="btn sm" onClick=${() => A.updTask(t.id, { priority: 'asap' }, 'Made ASAP — schedule reflowed')}>Make ASAP</button>
+      ${a.over > 0 && a.over < remainingMin(t) ? html`<button class="btn sm" onClick=${() => A.updTask(t.id, (x) => ({ duration: Math.max(15, (x.duration || 30) - Math.ceil(a.over / 15) * 15) }), 'Estimate shortened to fit')}>Shorten by ${fmtDur(Math.ceil(a.over / 15) * 15)}</button>` : null}
       ${a.bump ? html`<button class="btn sm ghost" onClick=${() => A.updTask(a.bump.id, { startDate: addDays(sod(t.deadline), 1) }, 'Pushed “' + a.bump.title + '” after this deadline')}>Push “${a.bump.title}” later</button>` : null}` : null}
     ${a.kind === 'nofit' ? html`<button class="btn sm" onClick=${() => A.updTask(t.id, (x) => ({ duration: Math.max(15, x.duration - Math.ceil(a.task.duration / 2 / 15) * 15) }), 'Estimate halved')}>Cut estimate in half</button>` : null}
     ${a.kind === 'overdue' ? html`<button class="btn sm" onClick=${() => A.updTask(t.id, { deadline: addDays(sod(now), 1) + 1020 * MIN }, 'Deadline moved to tomorrow')}>Move to tomorrow</button><button class="btn sm" onClick=${() => A.toggleDone(t.id)}>It’s done</button>` : null}
+    ${a.kind === 'project' ? html`<button class="btn sm" onClick=${() => A.updProject(a.project.id, { deadline: sod(a.projected) + 1020 * MIN })}>Move target to ${fmtD(a.projected)}</button>` : null}
     ${t ? html`<button class="btn sm ghost" onClick=${() => setDrawer({ type: 'task', id: t.id })}>Open</button>` : html`<button class="btn sm ghost" onClick=${() => setView('projects')}>View project</button>`}
   </div></div></div>`;
 }
@@ -957,7 +974,7 @@ function TaskRow({ t, plan, now, A, setDrawer, state }) {
   const when = t.status === 'done' ? 'Done' : inf.first ? relD(inf.first, now) + ' ' + fmtT(inf.first) : inf.unscheduled ? 'No room' : '—';
   return html`<div class="row click" onClick=${() => setDrawer({ type: 'task', id: t.id })}>
     <button class=${'chk' + (t.status === 'done' ? ' on' : '')} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
-    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.title}</b><small><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span> · ${fmtDur(t.duration)}${t.deadline ? ' · due ' + relD(t.deadline, now) : ''}${p ? ' · ' + p.name : ''}${t.status === 'blocked' ? ' · blocked' : ''}</small></div>
+    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.title}</b><small><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span> · ${fmtDur(t.duration)}${t.deadline ? ' · due ' + relD(t.deadline, now) : ''}${p ? ' · ' + p.name : ''}${t.status === 'blocked' ? ' · blocked' : ''}${t.status === 'doing' ? ' · in progress' : ''}${(t.labels || []).map((l) => html` <span class="lbl-pill">${l}</span>`)}</small></div>
     <span class="time" style=${inf.late || inf.unscheduled ? { color: 'var(--bad)' } : null}>${when}</span>
   </div>`;
 }
@@ -1043,12 +1060,14 @@ function TaskDrawer(ctx) {
     </div>
     <div class="grid2">
       <div class="fld"><label for="t-dl">Deadline</label><input id="t-dl" type="datetime-local" class="in" value=${toLocalDT(t.deadline)} onChange=${(e) => up({ deadline: e.target.value ? new Date(e.target.value).getTime() : null })} /></div>
+      <label class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', gridColumn: '1 / -1', color: 'var(--ink-2)' }}><input type="checkbox" checked=${!!t.hard} onChange=${(e) => up({ hard: e.target.checked })} />Hard deadline: schedule it first, and flag it red if it can’t make it</label>
       <div class="fld"><label for="t-sd">Don’t start before</label><input id="t-sd" type="date" class="in" value=${toLocalInput(t.startDate)} onChange=${(e) => up({ startDate: fromDateInput(e.target.value) })} /></div>
     </div>
     <div class="grid2">
       <div class="fld"><label for="t-proj">Project</label><select id="t-proj" class="in" value=${t.projectId || ''} onChange=${(e) => up({ projectId: e.target.value || null })}><option value="">None</option>${state.projects.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></div>
       <div class="fld"><label for="t-chunk">Smallest work block</label><select id="t-chunk" class="in" value=${t.minChunk || ''} onChange=${(e) => up({ minChunk: +e.target.value || null })}><option value="">Default (${state.settings.minChunk}m)</option>${[15, 30, 60, 90, 120].map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}<option value=${9999}>Don’t split</option></select></div>
     </div>
+    <div class="fld"><label for="t-lab">Labels</label><input id="t-lab" class="in" value=${(t.labels || []).join(', ')} onInput=${(e) => up({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="e.g. errands, youth, admin" /></div>
     <div class="fld"><label for="t-deps">Waits on</label>
       <select id="t-deps" class="in" value="" onChange=${(e) => e.target.value && up({ deps: [...(t.deps || []), e.target.value] })}><option value="">Add a task this depends on…</option>${others.filter((o) => !(t.deps || []).includes(o.id)).map((o) => html`<option key=${o.id} value=${o.id}>${o.title}</option>`)}</select>
       ${(t.deps || []).length ? html`<div class="chips" style=${{ marginTop: '6px' }}>${t.deps.map((d) => { const o = state.tasks.find((x) => x.id === d); return o ? html`<button key=${d} class="chip" onClick=${() => up({ deps: t.deps.filter((x) => x !== d) })} title="Remove">${o.title}${o.status === 'done' ? ' ✓' : ''} ×</button>` : null; })}</div>` : null}
@@ -1083,12 +1102,13 @@ function ProjectsView(ctx) {
   const { state, plan, now, A, draft, setDraft, runCommand, log } = ctx;
   const [open, setOpen] = useState(null);
   const [goal, setGoal] = useState('');
+  const [planning, setPlanning] = useState(false);
   if (draft) return html`<${DraftReview} ...${ctx} />`;
   if (open) return html`<${ProjectDetail} ...${ctx} p=${state.projects.find((p) => p.id === open)} back=${() => setOpen(null)} />`;
   return html`<div>
     <header class="hdr"><div><div class="sub">${state.projects.length} projects</div><h1>Projects</h1></div></header>
-    <form class="cmd" onSubmit=${(e) => { e.preventDefault(); if (goal.trim()) { setDraft(draftProject(goal, state, Date.now())); setGoal(''); } }}>
-      <${Icon} n="spark" cls="muted" /><input id="goal" value=${goal} onInput=${(e) => setGoal(e.target.value)} placeholder="Describe an outcome: “youth leader retreat by nov 14”, “launch the winter curriculum”" aria-label="Describe a project" /><button class="btn pri sm" type="submit">Draft plan</button>
+    <form class="cmd" onSubmit=${async (e) => { e.preventDefault(); if (!goal.trim() || planning) return; setPlanning(true); try { setDraft(await planProject(goal, state, ctx.setToast)); setGoal(''); } finally { setPlanning(false); } }}>
+      <${Icon} n="spark" cls="muted" /><input id="goal" value=${goal} onInput=${(e) => setGoal(e.target.value)} placeholder="Describe an outcome: “youth leader retreat by nov 14”, “launch the winter curriculum”" aria-label="Describe a project" /><button class="btn pri sm" type="submit" disabled=${planning}>${planning ? 'Planning…' : 'Draft plan'}</button>
     </form>
     <div class="pgrid" style=${{ marginTop: '20px' }}>
       ${state.projects.map((p) => { const ts = state.tasks.filter((t) => t.projectId === p.id); const dn = ts.filter((t) => t.status === 'done').length; const end = Math.max(0, ...ts.filter((t) => t.status !== 'done').map((t) => (plan.info[t.id] || {}).end || 0)); const risk = p.deadline && end > p.deadline; const blocked = ts.filter((t) => t.status === 'blocked').length;
@@ -1254,6 +1274,7 @@ function NotesView(ctx) {
   const { state, A, now, commit, setToast } = ctx;
   const [sel, setSel] = useState(state.notes[0] ? state.notes[0].id : null);
   const [review, setReview] = useState(null);
+  const [reading, setReading] = useState(false);
   const n = state.notes.find((x) => x.id === sel);
   const newNote = () => { const x = { id: uid(), title: 'Untitled note', body: '', updated: Date.now(), projectId: null }; A.saveNote(x); setSel(x.id); setReview(null); };
   const upd = (patch) => A.saveNote({ ...n, ...patch, updated: Date.now() });
@@ -1274,7 +1295,7 @@ function NotesView(ctx) {
           <div style=${{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
             <input id="n-title" class="title-in" style=${{ flex: '1 1 200px' }} value=${n.title} onInput=${(e) => upd({ title: e.target.value })} aria-label="Note title" />
             <select id="n-proj" class="in" style=${{ width: 'auto' }} value=${n.projectId || ''} onChange=${(e) => upd({ projectId: e.target.value || null })} aria-label="Linked project"><option value="">No project</option>${state.projects.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select>
-            <button class="btn sm" onClick=${() => setReview(extractFromNote(n, state, Date.now()))}><${Icon} n="spark" />Pull out actions</button>
+            <button class="btn sm" disabled=${reading} onClick=${async () => { setReading(true); try { setReview(await extractNote(n, state, setToast)); } finally { setReading(false); } }}><${Icon} n="spark" />${reading ? 'Reading…' : 'Pull out actions'}</button>
             <button class="btn sm ghost danger" onClick=${() => { A.delNote(n.id); setSel(null); }}>Delete</button>
           </div>
           <textarea id="n-body" value=${n.body} onInput=${(e) => upd({ body: e.target.value })} placeholder=${'Paste meeting notes or a transcript.\n\nKin picks up lines like:\n- [ ] Call venue tomorrow 30m\nAction: draft budget by friday\nDecision: keep it under $5k\nSam will send the list'}></textarea>
@@ -1283,13 +1304,13 @@ function NotesView(ctx) {
           <div class="ph"><h2>Review before adding</h2><span class="grow"></span><span class="tag prop">Proposed</span></div>
           <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div class="why"><b>Summary.</b> ${review.summary}</div>
-            ${review.decisions.length ? html`<div><div class="grp" style=${{ paddingTop: 0 }}>Decisions</div>${review.decisions.map((x, i) => html`<div key=${i} style=${{ fontSize: '13.5px', padding: '3px 0' }}>• ${x.text} <span class="muted mono" style=${{ fontSize: '11px' }}>line ${x.line + 1}</span></div>`)}</div>` : null}
+            ${review.decisions.length ? html`<div><div class="grp" style=${{ paddingTop: 0 }}>Decisions</div>${review.decisions.map((x, i) => html`<div key=${i} style=${{ fontSize: '13.5px', padding: '3px 0' }}>• ${x.text} <span class="muted mono" style=${{ fontSize: '11px' }}>${x.line != null ? 'line ' + (x.line + 1) : 'AI'}</span></div>`)}</div>` : null}
             <div><div class="grp" style=${{ paddingTop: 0 }}>Actions → tasks</div>
               ${review.actions.length ? review.actions.map((a, i) => html`<label key=${i} style=${{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '10px', padding: '6px 0', fontSize: '13.5px', alignItems: 'start' }}>
                 <input type="checkbox" id=${'ra' + i} checked=${a.include} onChange=${(e) => setReview({ ...review, actions: review.actions.map((x, j) => j === i ? { ...x, include: e.target.checked } : x) })} />
-                <span><b style=${{ fontWeight: 500 }}>${a.title}</b> <span class="muted">· ${fmtDur(a.duration || 30)}${a.deadline ? ' · due ' + relD(a.deadline, now) : ''} · line ${a.line + 1}</span>${a.note ? html`<br/><small class="muted">${a.note}</small>` : null}</span></label>`) : html`<div class="muted" style=${{ fontSize: '13px' }}>None found. Mark lines with “- [ ]”, “Action:” or “TODO”.</div>`}
+                <span><b style=${{ fontWeight: 500 }}>${a.title}</b> <span class="muted">· ${fmtDur(a.duration || 30)}${a.deadline ? ' · due ' + relD(a.deadline, now) : ''}${a.line != null ? ' · line ' + (a.line + 1) : ''}</span>${a.note ? html`<br/><small class="muted">${a.note}</small>` : null}</span></label>`) : html`<div class="muted" style=${{ fontSize: '13px' }}>None found. Mark lines with “- [ ]”, “Action:” or “TODO”.</div>`}
             </div>
-            ${review.events.length ? html`<div><div class="grp" style=${{ paddingTop: 0 }}>Meetings → calendar</div>${review.events.map((a, i) => html`<label key=${i} style=${{ display: 'flex', gap: '10px', padding: '6px 0', fontSize: '13.5px' }}><input type="checkbox" id=${'re' + i} checked=${a.include} onChange=${(e) => setReview({ ...review, events: review.events.map((x, j) => j === i ? { ...x, include: e.target.checked } : x) })} /><span><b style=${{ fontWeight: 500 }}>${a.title}</b> <span class="muted">· ${relD(a.start, now)} ${fmtT(a.start)} · line ${a.line + 1}</span></span></label>`)}</div>` : null}
+            ${review.events.length ? html`<div><div class="grp" style=${{ paddingTop: 0 }}>Meetings → calendar</div>${review.events.map((a, i) => html`<label key=${i} style=${{ display: 'flex', gap: '10px', padding: '6px 0', fontSize: '13.5px' }}><input type="checkbox" id=${'re' + i} checked=${a.include} onChange=${(e) => setReview({ ...review, events: review.events.map((x, j) => j === i ? { ...x, include: e.target.checked } : x) })} /><span><b style=${{ fontWeight: 500 }}>${a.title}</b> <span class="muted">· ${relD(a.start, now)} ${fmtT(a.start)}${a.line != null ? ' · line ' + (a.line + 1) : ''}</span></span></label>`)}</div>` : null}
             <div style=${{ display: 'flex', gap: '8px' }}><button class="btn pri sm" onClick=${accept}>Add selected</button><button class="btn sm ghost" onClick=${() => setReview(null)}>Dismiss</button></div>
           </div></div>` : null}
       </div>` : html`<div class="panel empty">Select or create a note.</div>`}
