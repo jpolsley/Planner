@@ -8,7 +8,8 @@ A small server between the Steward app and Hugging Face:
 
 Runs on a free Gradio Space using Gradio's Server mode (gr.Server is a FastAPI app that Spaces launches).
 Space secrets: HF_TOKEN (fine-grained, "Make calls to Inference Providers"), STEWARD_KEY (any long passphrase).
-Optional variables: MODELS (comma-separated model ids), ALLOWED_ORIGINS (comma-separated).
+Optional variable: MODELS (comma-separated model ids).
+Browser access (CORS) is handled by Gradio itself; the STEWARD_KEY is what keeps the Space private.
 """
 import json
 import os
@@ -22,20 +23,16 @@ os.environ.setdefault("GRADIO_SSR_MODE", "false")
 
 import gradio as gr
 from fastapi import Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 STEWARD_KEY = os.environ.get("STEWARD_KEY", "")
 MODELS = [m.strip() for m in os.environ.get(
     "MODELS", "Qwen/Qwen2.5-72B-Instruct,meta-llama/Llama-3.3-70B-Instruct,Qwen/Qwen2.5-7B-Instruct").split(",") if m.strip()]
-ORIGINS = [o.strip() for o in os.environ.get(
-    "ALLOWED_ORIGINS", "https://jpolsley.github.io,http://localhost:8000,http://localhost:8123").split(",") if o.strip()]
 ROUTER = os.environ.get("HF_ROUTER", "https://router.huggingface.co/v1/chat/completions")
 DOCS_DIR = Path(__file__).parent / "docs"
 
 app = gr.Server(title="Steward")
-app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"], expose_headers=["X-Steward-Model"])
 
 
 # ---------- documents ----------

@@ -104,7 +104,7 @@ const kinAI = {
     this.set({ status: 'ready', device: 'cloud', model: { key: 'cloud', name: KIN_CLOUD_MODELS[i].name, cloud: i }, progress: '', error: '', note: '' });
   },
   async load(key) {
-    if (!key && kinCloudAvailable() && !this.cloudOff && !kinLoad(KIN_PREF_KEY, {}).onDevice) { this.useCloud(); return; }
+    if (!key && !kinLoad(KIN_PREF_KEY, {}).onDevice) { if (kinCloudAvailable()) this.useCloud(); return; }
     if (!key) {
       this.set({ status: 'loading', progress: 'Checking for a GPU…', error: '' });
       let gpu = false;
@@ -154,14 +154,7 @@ const kinAI = {
       try {
         if (this.device === 'cloud') {
           try { return await kinCloudChat({ messages, maxTokens, temperature, onChunk }); }
-          catch (e) {
-            if (e.name === 'AbortError' || e.partial) throw e;
-            // Hugging Face unavailable (offline, monthly limit, bad token): switch to the on-device model.
-            this.cloudOff = true;
-            this.set({ note: 'Hugging Face isn’t available right now (' + e.message + '), so Steward switched to the on-device AI.' });
-            this.load();
-            await this.whenReady();
-          }
+          catch (e) { if (e.name === 'AbortError' || e.partial) throw e; throw new Error('Your Space: ' + e.message); }
         }
         return await local();
       } finally { this.set({ generating: false }); }
@@ -264,7 +257,11 @@ function kinSystem(state, plan, userText) {
 const suggestionLines = (text) => text.split('\n').map((l) => l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.{3,160})$/)).filter(Boolean).map((m) => m[1].replace(/\*\*/g, '').trim());
 
 /* Load automatically on startup once the user has opted in. */
-if (kinLoad(KIN_PREF_KEY, {}).autoLoad !== false) setTimeout(() => kinAI.status === 'idle' && kinAI.load(), 1500);
+{
+  const pf = kinLoad(KIN_PREF_KEY, {});
+  if (pf.onDevice) { if (pf.autoLoad !== false) setTimeout(() => kinAI.status === 'idle' && kinAI.load(), 1500); }
+  else if (kinCloudAvailable()) kinAI.useCloud();
+}
 
 function AssistantView(ctx) {
   const { state, plan, runCommand, setToast } = ctx;
@@ -287,6 +284,7 @@ function AssistantView(ctx) {
   const send = async (text) => {
     text = (text || input).trim();
     if (!text || busy) return;
+    if (!ready && !prefs.onDevice && !kinCloudAvailable()) { setToast({ text: 'Connect your Space above first, or turn on Private mode', id: uid() }); return; }
     if (!ready) {
       // Keep the message and send it as soon as the model is ready.
       setPending(text); setInput('');
@@ -331,7 +329,7 @@ function AssistantView(ctx) {
       setSpUrl(''); setSpKey(''); restart();
       setToast({ text: 'Connected to your Space' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
     } catch (e) {
-      setToast({ text: 'Couldn’t reach that Space. If it’s asleep, wait 30 seconds and try again', id: uid() });
+      setToast({ text: 'Couldn’t reach that Space (' + (e.message || e) + '). If it’s asleep, wait 30 seconds and try again', id: uid() });
     } finally { setChecking(false); }
   };
   const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
@@ -344,18 +342,28 @@ function AssistantView(ctx) {
         <button class=${'btn sm' + (tab === 'memory' ? ' pri' : ' ghost')} onClick=${() => setTab('memory')}>What I know (${kinMem.items.length})</button>
       </div></header>
     <section class="panel" style=${{ marginBottom: '16px' }}>
-      <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <b>${m ? m.name : kinCloudAvailable() && !prefs.onDevice ? KIN_CLOUD_MODELS[0].name : KIN_MODELS.main.name}</b>
-        <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Space' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
-        <span class="grow" style=${{ flex: '1' }}></span>
-        ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
-        ${ready && kinAI.device !== 'cloud' ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
-        ${kinCloudAvailable() ? html`<label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>` : null}
-        <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Steward</label>
-      </div>
-      ${kinAI.note ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>${kinAI.note}</p>` : null}
-      ${kinAI.status === 'error' ? html`<p class="small" style=${{ padding: '0 16px 12px', color: 'var(--danger,#c33)' }}>${kinAI.error}</p>` : null}
-      ${kinAI.status === 'idle' ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>The first load downloads the model from Hugging Face, then the browser caches it. Chrome or Edge on a recent computer is fastest (GPU). Everything, including what Steward learns about you, stays on this device.</p>` : null}
+      ${prefs.onDevice ? html`
+        <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <b>${m && m.key !== 'cloud' ? m.name : KIN_MODELS.main.name}</b>
+          <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Space' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
+          <span style=${{ flex: '1' }}></span>
+          ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
+          ${ready ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
+          <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Steward</label>
+          <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>
+        </div>
+        ${kinAI.note ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>${kinAI.note}</p>` : null}
+        ${kinAI.status === 'error' ? html`<p class="small" style=${{ padding: '0 16px 12px', color: 'var(--danger,#c33)' }}>${kinAI.error}</p>` : null}
+        <p class="small muted" style=${{ padding: '0 16px 12px' }}>Private mode runs a small AI on this device. Nothing is sent anywhere, but it's slower and less capable. The first load downloads the model once.</p>`
+      : kinCloudAvailable() ? html`
+        <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <b>${m && m.key === 'cloud' ? m.name : KIN_CLOUD_MODELS[0].name}</b>
+          <span class="muted small">Ready · via your Space${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}</span>
+          <span style=${{ flex: '1' }}></span>
+          <button class="btn sm ghost" onClick=${disconnect}>Disconnect</button>
+          <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>
+        </div>`
+      : html`
       <div style=${{ padding: '12px 16px', borderTop: '1px solid var(--line)' }}>
         ${kinCloudAvailable()
           ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to your Space (${sp.url.replace('https://', '')})${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}. Chats are answered by a large model on Hugging Face.</span><button class="btn sm ghost" onClick=${disconnect}>Disconnect</button></div>`
@@ -366,6 +374,7 @@ function AssistantView(ctx) {
               <button class="btn pri sm" type="submit" disabled=${!spUrl.trim() || spKey.trim().length < 8 || checking}>${checking ? 'Checking…' : 'Connect'}</button>
             </form>`}
       </div>
+        <div style=${{ padding: '0 16px 12px' }}><label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label></div>`}
     </section>
 
     ${tab === 'chat' ? html`<section class="panel">
