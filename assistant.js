@@ -321,7 +321,7 @@ function AssistantView(ctx) {
     if (!url) { setToast({ text: 'Enter your Space like “yourname/steward”', id: uid() }); return; }
     setChecking(true);
     try {
-      const res = await fetch(url + '/', { cache: 'no-store' });
+      const res = await fetch(url + '/health', { cache: 'no-store' });
       const info = await res.json();
       if (!info.configured) { setToast({ text: 'Found your Space, but its HF_TOKEN or STEWARD_KEY secret is missing', id: uid() }); return; }
       // An empty chat is rejected with 401 for a wrong key and 400 for a right one, without using any credits.
