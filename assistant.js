@@ -7,6 +7,17 @@ const KIN_MODELS = Object.freeze({
   // Only used if this device can't run the main model.
   fallback: { key: 'fallback', name: 'Qwen2.5 0.5B', repo: 'onnx-community/Qwen2.5-0.5B-Instruct', dtype: 'q4', dtypes: { webgpu: 'q4f16' }, context: 4096, size: '~480 MB' },
 });
+/* Hugging Face-hosted models (fast, large). The user pastes their own access token into the app;
+ * it is kept only in this browser's storage and sent only to Hugging Face. */
+const KIN_CLOUD_MODELS = [
+  { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen2.5 72B' },
+  { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B' },
+  { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen2.5 7B' },
+];
+const KIN_CLOUD_KEY = 'kin.planner.cloud.v1';
+const KIN_TOKEN_KEY = 'steward.hf.token';
+const kinToken = () => { try { return localStorage.getItem(KIN_TOKEN_KEY) || ''; } catch (e) { return ''; } };
+const kinCloudAvailable = () => /^hf_[A-Za-z0-9]{20,}$/.test(kinToken());
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
@@ -79,7 +90,13 @@ const kinAI = {
   engine: null, status: 'idle', model: null, device: null, progress: '', error: '', note: '', subs: new Set(),
   jobs: new Map(), queue: Promise.resolve(), generating: false,
   set(patch) { Object.assign(this, patch); this.subs.forEach((f) => f()); },
+  cloudOff: false, abort: null,
+  useCloud() {
+    const i = Math.min(kinLoad(KIN_CLOUD_KEY, 0), KIN_CLOUD_MODELS.length - 1);
+    this.set({ status: 'ready', device: 'cloud', model: { key: 'cloud', name: KIN_CLOUD_MODELS[i].name, cloud: i }, progress: '', error: '', note: '' });
+  },
   async load(key) {
+    if (!key && kinCloudAvailable() && !this.cloudOff && !kinLoad(KIN_PREF_KEY, {}).onDevice) { this.useCloud(); return; }
     if (!key) {
       this.set({ status: 'loading', progress: 'Checking for a GPU…', error: '' });
       let gpu = false;
@@ -117,19 +134,85 @@ const kinAI = {
   unload() { if (this.engine) this.engine.terminate(); this.set({ engine: null, status: 'idle', model: null }); },
   /* Runs one generation at a time; later calls wait their turn. */
   ask({ messages, baseSystem, maxTokens = 320, temperature = 0.6, onChunk }) {
-    const run = () => new Promise((resolve, reject) => {
+    const local = () => new Promise((resolve, reject) => {
       if (this.status !== 'ready') { reject(new Error('The model is not loaded.')); return; }
       const requestId = uid();
       this.jobs.set(requestId, { resolve, reject, onChunk });
       this.set({ generating: true });
       this.engine.postMessage({ type: 'generate', requestId, messages, baseSystem: baseSystem || messages[0].content, maxTokens, temperature });
-    }).finally(() => this.set({ generating: false }));
+    });
+    const run = async () => {
+      this.set({ generating: true });
+      try {
+        if (this.device === 'cloud') {
+          try { return await kinCloudChat({ messages, maxTokens, temperature, onChunk }); }
+          catch (e) {
+            if (e.name === 'AbortError' || e.partial) throw e;
+            // Hugging Face unavailable (offline, monthly limit, bad token): switch to the on-device model.
+            this.cloudOff = true;
+            this.set({ note: 'Hugging Face isn’t available right now (' + e.message + '), so Steward switched to the on-device AI.' });
+            this.load();
+            await this.whenReady();
+          }
+        }
+        return await local();
+      } finally { this.set({ generating: false }); }
+    };
     const p = this.queue.then(run, run);
     this.queue = p.catch(() => {});
     return p;
   },
-  stop() { if (this.engine) this.engine.postMessage({ type: 'stop' }); },
+  stop() { if (this.abort) this.abort.abort(); if (this.engine) this.engine.postMessage({ type: 'stop' }); },
+  whenReady() {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (this.status === 'ready') { this.subs.delete(check); resolve(); }
+        else if (this.status === 'error') { this.subs.delete(check); reject(new Error(this.error)); }
+      };
+      this.subs.add(check); check();
+    });
+  },
 };
+
+/* Streams a reply from Hugging Face's OpenAI-compatible router, moving down the model list if one isn't offered. */
+async function kinCloudChat({ messages, maxTokens, temperature, onChunk }) {
+  let i = Math.min(kinLoad(KIN_CLOUD_KEY, 0), KIN_CLOUD_MODELS.length - 1);
+  for (; i < KIN_CLOUD_MODELS.length; i++) {
+    const ctrl = new AbortController(); kinAI.abort = ctrl;
+    let res;
+    try {
+      res = await fetch('https://router.huggingface.co/v1/chat/completions', {
+        method: 'POST', signal: ctrl.signal,
+        headers: { Authorization: 'Bearer ' + kinToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: KIN_CLOUD_MODELS[i].id, messages, max_tokens: maxTokens, temperature: Math.max(temperature, 0.1), stream: true }),
+      });
+    } catch (e) { if (e.name === 'AbortError') throw e; throw new Error('no connection'); }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      if ([400, 404, 422].includes(res.status) && /model|not supported|not found|provider/i.test(body) && i + 1 < KIN_CLOUD_MODELS.length) continue;
+      throw new Error(res.status === 401 ? 'the access token was rejected' : res.status === 402 ? 'the free monthly allowance is used up' : res.status === 429 ? 'too many requests' : 'error ' + res.status);
+    }
+    if (i !== kinLoad(KIN_CLOUD_KEY, 0)) { kinSave(KIN_CLOUD_KEY, i); kinAI.set({ model: { key: 'cloud', name: KIN_CLOUD_MODELS[i].name, cloud: i } }); }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '', text = '';
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n'); buf = lines.pop();
+        for (const line of lines) {
+          const data = line.replace(/^data:\s*/, '').trim();
+          if (!line.startsWith('data:') || !data || data === '[DONE]') continue;
+          try { const c = JSON.parse(data).choices?.[0]?.delta?.content; if (c) { text += c; onChunk && onChunk(c); } } catch (e) {}
+        }
+      }
+    } catch (e) { if (e.name !== 'AbortError') throw Object.assign(new Error(e.message), { partial: text }); }
+    finally { kinAI.abort = null; }
+    return text;
+  }
+  throw new Error('none of the models are offered');
+}
 
 /* Ask the model which lasting facts about the user a message reveals. */
 async function kinLearnFrom(userText, reply) {
@@ -219,25 +302,44 @@ function AssistantView(ctx) {
   useEffect(() => { if (kinAI.status === 'error' && pendingText) { setInput(pendingText); setPending(null); } }, [kinAI.status]);
   const pats = learnedPatterns(state);
   const m = kinAI.model;
+  const restart = () => { kinAI.cloudOff = false; kinAI.unload(); setTimeout(() => kinAI.load(), 0); };
+  const [tok, setTok] = useState('');
+  const saveTok = () => {
+    const t = tok.trim();
+    if (!/^hf_[A-Za-z0-9]{20,}$/.test(t)) { setToast({ text: 'That doesn’t look like a Hugging Face token (it starts with hf_)', id: uid() }); return; }
+    try { localStorage.setItem(KIN_TOKEN_KEY, t); } catch (e) {}
+    setTok(''); restart(); setToast({ text: 'Connected to Hugging Face', id: uid() });
+  };
+  const removeTok = () => { try { localStorage.removeItem(KIN_TOKEN_KEY); } catch (e) {} kinSave(KIN_CLOUD_KEY, 0); restart(); setToast({ text: 'Token removed from this device', id: uid() }); };
 
   return html`<div>
-    <header class="hdr"><div><div class="sub">On-device AI · learns about you · no API key</div><h1>Assistant</h1></div><span class="grow"></span>
+    <header class="hdr"><div><div class="sub">Your planning AI · learns about you</div><h1>Assistant</h1></div><span class="grow"></span>
       <div class="seg" style=${{ display: 'flex', gap: '6px' }}>
         <button class=${'btn sm' + (tab === 'chat' ? ' pri' : ' ghost')} onClick=${() => setTab('chat')}>Chat</button>
         <button class=${'btn sm' + (tab === 'memory' ? ' pri' : ' ghost')} onClick=${() => setTab('memory')}>What I know (${kinMem.items.length})</button>
       </div></header>
     <section class="panel" style=${{ marginBottom: '16px' }}>
       <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <b>${m ? m.name : KIN_MODELS.main.name}</b>
-        <span class="muted small">${ready ? 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
+        <b>${m ? m.name : kinCloudAvailable() && !prefs.onDevice ? KIN_CLOUD_MODELS[0].name : KIN_MODELS.main.name}</b>
+        <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · on Hugging Face' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
         <span class="grow" style=${{ flex: '1' }}></span>
         ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
-        ${ready ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
+        ${ready && kinAI.device !== 'cloud' ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
+        ${kinCloudAvailable() ? html`<label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>` : null}
         <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Steward</label>
       </div>
       ${kinAI.note ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>${kinAI.note}</p>` : null}
       ${kinAI.status === 'error' ? html`<p class="small" style=${{ padding: '0 16px 12px', color: 'var(--danger,#c33)' }}>${kinAI.error}</p>` : null}
       ${kinAI.status === 'idle' ? html`<p class="small muted" style=${{ padding: '0 16px 12px' }}>The first load downloads the model from Hugging Face, then the browser caches it. Chrome or Edge on a recent computer is fastest (GPU). Everything, including what Steward learns about you, stays on this device.</p>` : null}
+      <div style=${{ padding: '12px 16px', borderTop: '1px solid var(--line)' }}>
+        ${kinCloudAvailable()
+          ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to Hugging Face on this device. Chats are answered by a large model on their servers.</span><button class="btn sm ghost" onClick=${removeTok}>Remove token</button></div>`
+          : html`<form style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }} onSubmit=${(e) => { e.preventDefault(); saveTok(); }}>
+              <span class="small" style=${{ flex: '1 1 100%' }}><b>Faster, smarter answers:</b> paste a Hugging Face access token (huggingface.co → Settings → Access Tokens → “Read”). It’s saved only in this browser and sent only to Hugging Face.</span>
+              <input class="in" type="password" autocomplete="off" value=${tok} onInput=${(e) => setTok(e.target.value)} placeholder="hf_…" aria-label="Hugging Face token" style=${{ flex: '1', minWidth: '200px' }} />
+              <button class="btn pri sm" type="submit" disabled=${!tok.trim()}>Connect</button>
+            </form>`}
+      </div>
     </section>
 
     ${tab === 'chat' ? html`<section class="panel">
