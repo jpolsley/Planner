@@ -17,6 +17,9 @@ import secrets
 from pathlib import Path
 
 import httpx
+# Spaces put a Node page-rendering proxy in front of Gradio apps by default; this API doesn't need it.
+os.environ.setdefault("GRADIO_SSR_MODE", "false")
+
 import gradio as gr
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -164,5 +167,8 @@ def status_page():
 </body></html>"""
 
 
+# Spaces run `gradio app.py`, which launches the object named `demo`.
+demo = app
+
 if __name__ == "__main__":
-    app.launch()
+    demo.launch(ssr_mode=False)
