@@ -184,11 +184,26 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .mob{display:none}
 .lbl-pill{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);font-size:11px;line-height:16px}
 /* project page: description · properties · stages */
-.pd{display:grid;grid-template-columns:minmax(0,1.15fr) 260px minmax(0,1fr);gap:22px;align-items:start}
+.pd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:'main props' 'docs tasks';gap:14px 26px;align-items:start}
+.pd-main{grid-area:main}.pd-props{grid-area:props}.pd-tasks{grid-area:tasks}.pd-docs{grid-area:docs}
 .pd-desc{width:100%;min-height:110px;margin-top:10px;background:none;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;line-height:1.55;color:var(--ink);resize:vertical}
 .pd-props{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .pd-health{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;display:flex;flex-direction:column;gap:2px;color:var(--good)}
 .pd-health.bad{color:var(--bad)}.pd-health small{color:var(--ink-3);font-weight:400}
+.pd-sum{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;background:none;border:0;text-align:left;font-size:13px;flex-wrap:wrap}
+.pd-sum .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}.pd-sum .dot.bad{background:var(--bad)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:6px 12px 12px;font-size:13px}
+.kv label{color:var(--ink-3)}.kv>*:nth-child(even){justify-self:end;text-align:right}
+.kv-v{color:var(--ink-2)}
+.ghostin{background:none;border:1px solid transparent;border-radius:8px;padding:5px 6px;color:var(--ink);font:inherit;font-size:13px;text-align:right;max-width:190px;color-scheme:dark}
+.ghostin:hover,.ghostin:focus{border-color:var(--line-2);outline:none}
+select.ghostin{text-align-last:right}
+.npm{max-width:880px;width:min(880px,calc(100% - 24px));padding:0;flex-direction:row;gap:0;min-height:min(560px,80vh)}
+.npm-main{flex:1;min-width:0;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
+.npm-top{display:flex;align-items:center;gap:6px;font-size:13px}.npm-top svg{width:15px;height:15px;vertical-align:-3px}
+.npm-desc{flex:1;min-height:160px;background:none;border:0;outline:none;resize:none;font:inherit;line-height:1.55;color:var(--ink)}
+.npm-side{width:300px;border-left:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:8px}
+.npm-side .btn{justify-content:center}
 .props{display:grid;grid-template-columns:86px 1fr;gap:10px 10px;padding:14px;margin:0;align-items:center}
 .props dt{color:var(--ink-3);font-size:13px}.props dd{margin:0;min-width:0}.props .in{width:100%}
 .swatches{display:flex;gap:6px}.sw{width:20px;height:20px;border-radius:6px;border:2px solid transparent;padding:0}.sw.on{border-color:var(--ink)}
@@ -211,8 +226,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .stg-t .mono{font-size:11.5px;white-space:nowrap}
 .stg-plus{margin:4px 0}
 .stg-add{display:flex;gap:8px;margin:6px 0}.stg-add .in{flex:1;min-width:0}
-@media (max-width:1100px){.pd{grid-template-columns:minmax(0,1fr) 260px}.pd-tasks{grid-column:1 / -1}}
-@media (max-width:860px){.pd{grid-template-columns:1fr;gap:16px}.pd-tasks{order:2}.pd-props{order:3}.pd-desc{min-height:64px}}
+@media (max-width:860px){.pd{grid-template-columns:1fr;grid-template-areas:'main' 'props' 'tasks' 'docs';gap:12px}.pd-desc{min-height:52px}.npm{flex-direction:column}.npm-side{width:auto;border-left:0;border-top:1px solid var(--line)}}
 .nav .mlbl{display:none}
 .cmd textarea{flex:1;border:0;background:none;outline:none;padding:8px 0;font:inherit;font-size:15px;min-width:0;resize:none;line-height:1.4;max-height:40vh;color:inherit}
 .dump{margin-top:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -1103,6 +1117,7 @@ function ProjectsView(ctx) {
   const [open, setOpen] = useState(null);
   const [goal, setGoal] = useState('');
   const [planning, setPlanning] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   if (draft) return html`<${DraftReview} ...${ctx} />`;
   if (open) return html`<${ProjectDetail} ...${ctx} p=${state.projects.find((p) => p.id === open)} back=${() => setOpen(null)} />`;
   return html`<div>
@@ -1118,8 +1133,9 @@ function ProjectsView(ctx) {
           <div class="bar" style=${{ marginTop: 0 }}><i style=${{ width: (ts.length ? dn / ts.length * 100 : 0) + '%' }}></i></div>
           <div class="stat"><span class="pill">${dn}/${ts.length} done</span>${risk ? html`<span class="pill bad">At risk</span>` : ts.length ? html`<span class="pill ok">On track</span>` : null}${blocked ? html`<span class="pill warn">${blocked} blocked</span>` : null}${end ? html`<span class="pill">Finishes ${relD(end, now)}</span>` : null}</div>
         </button>`; })}
-      <button class="panel pcard" style=${{ borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', color: 'var(--ink-3)', minHeight: '120px' }} onClick=${() => { const p = { id: uid(), name: 'Untitled project', status: 'active', created: Date.now(), deadline: null }; A.addProject(p); setOpen(p.id); }}><${Icon} n="plus" cls="" /> Blank project</button>
+      <button class="panel pcard" style=${{ borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', color: 'var(--ink-3)', minHeight: '120px' }} onClick=${() => setNewOpen(true)}><${Icon} n="plus" cls="" /> New project</button>
     </div>
+    ${newOpen ? html`<${NewProjectModal} state=${state} A=${A} setDraft=${setDraft} setToast=${ctx.setToast} onClose=${() => setNewOpen(false)} onCreated=${(id) => { setNewOpen(false); setOpen(id); }} />` : null}
   </div>`;
 }
 
@@ -1133,11 +1149,62 @@ function projectStages(p, ts) {
   return names;
 }
 
+/* Compact label/value rows shared by the new-project window and the project page's Details. */
+function ProjectFields({ v, set, stageText }) {
+  return html`<div class="kv">
+    <label>Status</label><select class="ghostin" value=${v.status || 'active'} onChange=${(e) => set({ status: e.target.value })}>${Object.entries(P_STATUS).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
+    ${stageText !== undefined ? html`<label>Stage</label><span class="kv-v">${stageText}</span>` : null}
+    <label>Start date</label><input type="date" class="ghostin" value=${toLocalInput(v.start)} onChange=${(e) => set({ start: fromDateInput(e.target.value) })} />
+    <label>Deadline</label><input type="date" class="ghostin" value=${toLocalInput(v.deadline)} onChange=${(e) => set({ deadline: fromDateInput(e.target.value, true) })} />
+    <label>Priority</label><select class="ghostin" value=${v.priority || 'med'} onChange=${(e) => set({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select>
+    <label>Color</label><span class="swatches">${Object.entries(P_COLORS).map(([k, c]) => html`<button type="button" key=${k} class=${'sw' + ((v.color || 'gray') === k ? ' on' : '')} style=${{ background: c }} onClick=${() => set({ color: k })} aria-label=${k}></button>`)}</span>
+    <label>Labels</label><input class="ghostin" value=${(v.labels || []).join(', ')} onInput=${(e) => set({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="None" />
+  </div>`;
+}
+
+function NewProjectModal({ state, A, setDraft, setToast, onClose, onCreated }) {
+  const [v, setV] = useState({ name: '', desc: '', status: 'planning', start: sod(Date.now()), deadline: null, priority: 'med', color: 'gray', labels: [] });
+  const [busy, setBusy] = useState(false);
+  const set = (patch) => setV((x) => ({ ...x, ...patch }));
+  const create = (e) => {
+    e && e.preventDefault();
+    if (!v.name.trim()) return;
+    const p = { id: uid(), created: Date.now(), ...v, name: v.name.trim() };
+    A.addProject(p); onCreated(p.id);
+  };
+  const aiPlan = async () => {
+    const goal = [v.name, v.desc].filter((x) => x.trim()).join('. ') + (v.deadline ? ' by ' + fmtD(v.deadline) : '');
+    if (!goal.trim()) return;
+    setBusy(true);
+    try {
+      const d = await planProject(goal, state, setToast);
+      setDraft({ ...d, name: v.name.trim() || d.name, target: v.deadline || d.target, extra: { desc: v.desc, status: v.status, start: v.start, priority: v.priority, color: v.color, labels: v.labels } });
+      onClose();
+    } finally { setBusy(false); }
+  };
+  return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <form class="modal npm" onSubmit=${create} role="dialog" aria-label="New project">
+      <div class="npm-main">
+        <div class="npm-top"><span class="muted"><${Icon} n="proj" /> New project</span><span style=${{ flex: 1 }}></span><button type="button" class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button></div>
+        <input class="title-in" autoFocus value=${v.name} onInput=${(e) => set({ name: e.target.value })} placeholder="Project name" aria-label="Project name" />
+        <textarea class="npm-desc" value=${v.desc} onInput=${(e) => set({ desc: e.target.value })} placeholder="Goals, what done looks like, anything Steward should know…" aria-label="Description"></textarea>
+      </div>
+      <aside class="npm-side">
+        <${ProjectFields} v=${v} set=${set} />
+        <span style=${{ flex: 1 }}></span>
+        <button type="submit" class="btn pri" disabled=${!v.name.trim() || busy}>Create project</button>
+        <button type="button" class="btn" disabled=${!v.name.trim() || busy} onClick=${aiPlan}><${Icon} n="spark" />${busy ? 'Planning…' : 'Create with AI plan'}</button>
+      </aside>
+    </form>
+  </div>`;
+}
+
 function ProjectDetail(ctx) {
   const { p, back, state, A, now, plan, setDrawer, commit } = ctx;
   const [adding, setAdding] = useState(null); // stage name receiving a new task
   const [nt, setNt] = useState('');
   const [newStage, setNewStage] = useState(null);
+  const [showProps, setShowProps] = useState(false);
   if (!p) { back(); return null; }
   const ts = state.tasks.filter((t) => t.projectId === p.id);
   const notes = state.notes.filter((n) => n.projectId === p.id);
@@ -1183,22 +1250,21 @@ function ProjectDetail(ctx) {
       <section class="pd-main">
         <input id="p-name" class="title-in" style=${{ fontSize: '28px' }} value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
         <textarea class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project, and what does done look like?" aria-label="Project description"></textarea>
-        <div class="grp" style=${{ display: 'flex', alignItems: 'center' }}>Docs · ${notes.length}<span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${newDoc}><${Icon} n="plus" />Create doc</button></div>
+      </section>
+      <section class="pd-docs">
+        <div class="grp" style=${{ display: 'flex', alignItems: 'center', marginTop: 0 }}>Docs · ${notes.length}<span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${newDoc}><${Icon} n="plus" />Create doc</button></div>
         <div class="panel rows">${notes.length ? notes.map((n) => html`<div key=${n.id} class="row click" onClick=${() => ctx.setView('notes')}><span></span><div class="t"><b>${n.title}</b><small>Updated ${relD(n.updated, now)}</small></div><span></span></div>`) : html`<div class="empty">No docs yet. Create one, or link a note to this project from Notes.</div>`}</div>
         <button class="btn sm danger ghost" style=${{ marginTop: '18px' }} onClick=${() => { A.delProject(p.id); back(); }}>Delete project</button>
       </section>
 
       <section class="pd-props">
-        <div class=${'pd-health' + (late ? ' bad' : '')}>${ts.length ? (late ? 'Project is at risk' : p.status === 'done' ? 'Project is done' : 'Project is on track') : 'No tasks yet'}<small>${done}/${ts.length} done${finish ? ' · finishes ' + relD(finish, now) : ''}</small></div>
-        <dl class="props">
-          <dt>Status</dt><dd><select class="in" value=${p.status || 'active'} onChange=${(e) => up({ status: e.target.value })}>${Object.entries(P_STATUS).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></dd>
-          <dt>Stage</dt><dd>${current !== undefined ? html`<span class="spill" style=${{ '--c': color }}>${current || 'Tasks'}</span>` : html`<span class="muted">${ts.length ? 'All stages done' : '—'}</span>`}</dd>
-          <dt>Start date</dt><dd><input type="date" class="in" value=${toLocalInput(start)} onChange=${(e) => up({ start: fromDateInput(e.target.value) })} /></dd>
-          <dt>Deadline</dt><dd><input type="date" class="in" value=${toLocalInput(p.deadline)} onChange=${(e) => up({ deadline: fromDateInput(e.target.value, true) })} /></dd>
-          <dt>Priority</dt><dd><select class="in" value=${p.priority || 'med'} onChange=${(e) => up({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select></dd>
-          <dt>Color</dt><dd class="swatches">${Object.entries(P_COLORS).map(([k, c]) => html`<button key=${k} class=${'sw' + ((p.color || 'gray') === k ? ' on' : '')} style=${{ background: c }} onClick=${() => up({ color: k })} aria-label=${k}></button>`)}</dd>
-          <dt>Labels</dt><dd><input class="in" value=${(p.labels || []).join(', ')} onInput=${(e) => up({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="e.g. youth, fall" /></dd>
-        </dl>
+        <button class="pd-sum" onClick=${() => setShowProps(!showProps)} aria-expanded=${showProps}>
+          <span class=${'dot ' + (late ? 'bad' : 'ok')}></span>
+          <b>${ts.length ? (late ? 'At risk' : p.status === 'done' ? 'Done' : 'On track') : 'No tasks yet'}</b>
+          <span class="muted">${[P_STATUS[p.status || 'active'], PRI_LABEL[p.priority || 'med'], p.deadline ? 'Due ' + fmtD(p.deadline).slice(4) : null, ts.length ? done + '/' + ts.length + ' done' : null].filter(Boolean).join(' · ')}</span>
+          <span style=${{ flex: 1 }}></span><span class="muted small">${showProps ? 'Hide' : 'Details'}</span><${Icon} n=${showProps ? 'left' : 'right'} />
+        </button>
+        ${showProps ? html`<${ProjectFields} v=${{ ...p, start }} set=${up} stageText=${current !== undefined ? (current || 'Tasks') : (ts.length ? 'All stages done' : '—')} />` : null}
       </section>
 
       <section class="pd-tasks">
@@ -1245,7 +1311,7 @@ function DraftReview(ctx) {
       });
       stageLast[s.name] = ids;
     });
-    commit((st) => ({ ...st, projects: [...st.projects, { id: pid, name: d.name, deadline: d.target, status: 'active', created, goal: d.goal, stages: d.stages.map((s) => s.name) }], tasks: [...st.tasks, ...newTasks] }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
+    commit((st) => ({ ...st, projects: [...st.projects, { status: 'active', ...(d.extra || {}), id: pid, name: d.name, deadline: d.target, created, goal: d.goal, stages: d.stages.map((s) => s.name) }], tasks: [...st.tasks, ...newTasks] }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
     setDraft(null);
   };
   const total = d.stages.reduce((a, s) => a + s.tasks.filter((t) => t.include).reduce((b, t) => b + t.duration, 0), 0);
