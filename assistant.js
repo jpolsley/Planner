@@ -293,12 +293,67 @@ async function kinFilterTasks(text, state) {
   const now = Date.now();
   const open = state.tasks.filter((t) => t.status !== 'done').slice(0, 60);
   if (!open.length) return [];
-  const list = open.map((t, i) => (i + 1) + '. ' + t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + relD(t.deadline, now) : '') + ((state.projects.find((p) => p.id === t.projectId) || {}).name ? ', project ' + state.projects.find((p) => p.id === t.projectId).name : '') + ')').join('\n');
+  const list = open.map((t, i) => (i + 1) + '. ' + t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + relD(t.deadline, now) + (t.hard ? ' (hard)' : '') : '') + (t.status === 'doing' ? ', in progress' : '') + ((t.labels || []).length ? ', labels ' + t.labels.join('/') : '') + ((state.projects.find((p) => p.id === t.projectId) || {}).name ? ', project ' + state.projects.find((p) => p.id === t.projectId).name : '') + ')').join('\n');
   const sys = 'You filter a task list. Reply with ONLY the numbers of the matching tasks, comma-separated, most relevant first, or NONE.';
   const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Today is ' + fmtD(now) + '.\nTasks:\n' + list + '\n\nRequest: ' + text }], baseSystem: sys, maxTokens: 80, temperature: 0.1 });
   if (/none/i.test(out) && !/\d/.test(out)) return [];
   const seen = new Set();
   return (out.match(/\d+/g) || []).map(Number).filter((n) => n >= 1 && n <= open.length && !seen.has(n) && seen.add(n)).map((n) => open[n - 1].id);
+}
+
+/* ---------- AI project planning and meeting notes (same review screens as the built-in versions) ---------- */
+function kinJSON(text) {
+  const m = String(text).match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('The AI didn’t return a plan. Try rewording the goal.');
+  return JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+}
+async function kinDraftProject(goal, state) {
+  await kinReady();
+  const now = Date.now();
+  const facts = kinRecall(goal, 8).map((m) => '- ' + m.text).join('\n');
+  const sys = 'You are a project planner. Break the goal into 3-6 stages in order, each with 2-6 concrete tasks a single person can do. '
+    + 'Estimate each task in minutes (15-480). Reply with ONLY JSON: {"name":"short project name","target":"YYYY-MM-DD or null",'
+    + '"stages":[{"name":"stage name","tasks":[{"title":"verb-first task","minutes":60}]}],"assumptions":["..."],"question":"one question that would improve the plan"}';
+  const user = 'Today is ' + new Date(now).toISOString().slice(0, 10) + ' (' + fmtD(now) + ').\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + 'Goal: ' + goal;
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 1100, temperature: 0.3 });
+  const j = kinJSON(out);
+  const stagesIn = (j.stages || []).filter((st) => st && st.name && (st.tasks || []).length).slice(0, 8);
+  if (!stagesIn.length) throw new Error('The AI plan had no stages. Try describing the outcome in more detail.');
+  const w = parseWhen(goal, now);
+  const totalMin = stagesIn.reduce((a, st) => a + st.tasks.reduce((b, t) => b + (Math.min(480, Math.max(15, +t.minutes || 30))), 0), 0);
+  const aiDate = /^\d{4}-\d{2}-\d{2}$/.test(j.target || '') ? fromDateInput(j.target, true) : null;
+  const target = w.date != null ? atMin(w.date, 1020) : aiDate && aiDate > now + DAY ? aiDate : addDays(sod(now), Math.max(14, Math.ceil(totalMin / 60 / 2) * 2 + 7)) + 1020 * MIN;
+  const span = target - now;
+  let acc = 0;
+  const stages = stagesIn.map((st, si) => ({
+    name: String(st.name).slice(0, 60),
+    tasks: st.tasks.slice(0, 10).map((t, ti) => {
+      const dur = Math.round(Math.min(480, Math.max(15, +t.minutes || 30)) / 15) * 15;
+      acc += dur;
+      return { key: si + '.' + ti, title: String(t.title || 'Task').slice(0, 120), duration: dur, include: true, depStage: si > 0 ? String(stagesIn[si - 1].name).slice(0, 60) : null, deadline: sod(now + span * (acc / totalMin)) + 1020 * MIN };
+    }),
+  }));
+  const assume = (j.assumptions || []).map(String).slice(0, 5);
+  if (w.date == null && !aiDate) assume.unshift('No target date given, so I assumed ' + fmtD(target) + '.');
+  assume.push('Drafted by Steward’s AI. Deadlines are spread by effort; adjust anything before accepting.');
+  return { goal, name: String(j.name || goal).slice(0, 80), kind: 'AI plan', target, stages, assume, ask: j.question ? String(j.question) : null, dateGiven: w.date != null };
+}
+async function kinExtractNote(note, state) {
+  await kinReady();
+  const now = Date.now();
+  const sys = 'You read meeting notes and pull out what matters. Reply with ONLY JSON: {"summary":"2 sentences","decisions":["..."],'
+    + '"myActions":["things the note-taker (me) must do, each written like \\"Email Sam the budget by fri 30m\\"; meetings with a time like \\"Call venue tue 2pm\\""],'
+    + '"othersActions":[{"owner":"name","task":"what they will do"}]}. Use only what is in the notes.';
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Today is ' + fmtD(now) + '.\nNotes titled "' + note.title + '":\n' + note.body.slice(0, 12000) }], baseSystem: sys, maxTokens: 900, temperature: 0.2 });
+  const j = kinJSON(out);
+  const actions = [], events = [];
+  (j.myActions || []).map(String).forEach((line) => {
+    const p = parseCommand(line, state, now);
+    if (p.kind === 'event') events.push({ line: null, include: true, ...p });
+    else actions.push({ line: null, include: true, ...p, kind: 'task' });
+  });
+  (j.othersActions || []).forEach((o) => { if (o && o.task) actions.push({ line: null, include: false, kind: 'task', title: String(o.task).charAt(0).toUpperCase() + String(o.task).slice(1), duration: 30, priority: 'med', deadline: parseCommand(String(o.task), state, now).deadline, owner: o.owner, note: 'Owned by ' + o.owner + '. Add it if you want to track it.' }); });
+  return { summary: String(j.summary || 'Summary unavailable.'), decisions: (j.decisions || []).map((t) => ({ line: null, text: String(t) })), actions, events };
 }
 
 function AssistantView(ctx) {
