@@ -190,6 +190,34 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .pd-props{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .pd-health{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;display:flex;flex-direction:column;gap:2px;color:var(--good)}
 .pd-health.bad{color:var(--bad)}.pd-health small{color:var(--ink-3);font-weight:400}
+.phero{display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:18px 20px;margin-bottom:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 16%,var(--surface)),var(--surface) 55%)}
+.ring{--p:0;width:84px;height:84px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
+.ring span{width:66px;height:66px;border-radius:50%;background:var(--surface);display:flex;align-items:baseline;justify-content:center;padding-top:22px;font:700 20px var(--f-display)}
+.ring small{font-size:11px;color:var(--ink-3);margin-left:1px}
+.phero-main{flex:1;min-width:240px}.phero-main .title-in{font-size:28px;margin:0}
+.stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:8px}
+.stats div{display:flex;flex-direction:column}.stats b{font:700 18px var(--f-display)}.stats span{font-size:11.5px;color:var(--ink-3)}
+.stats .warn b{color:var(--warn)}.stats .bad b{color:var(--bad)}
+.upnext{min-width:220px;max-width:320px;padding:12px 14px;border-radius:14px;background:var(--sunk);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.upnext .eyebrow{font:500 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--c)}
+.upnext .tt{background:none;border:0;padding:0;text-align:left;font-weight:600;font-size:15px}
+.upnext .acts{display:flex;gap:6px;margin-top:6px}
+.vtabs{display:flex;gap:4px;align-items:center;margin-bottom:10px}
+.vtabs>button:not(.btn){background:none;border:1px solid transparent;border-radius:8px;padding:5px 11px;color:var(--ink-3);font-size:13px}
+.vtabs>button.on{border-color:var(--line-2);color:var(--ink);background:var(--sunk)}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+.bcol{flex:0 0 230px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.bcol-h{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.bcard{text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:3px}
+.bcard .mono{font-size:11px}.bcard.dn b{text-decoration:line-through;color:var(--ink-3)}
+.bcard-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.bcard-tags .lbl-pill{margin:0}
+.gantt{position:relative;padding:22px 0 6px}
+.g-axis{position:absolute;top:0;left:38%;right:0;display:flex;justify-content:space-between;font:500 10.5px var(--f-mono);color:var(--ink-3)}
+.g-today,.g-dl{position:absolute;top:16px;bottom:0;width:0;border-left:1px dashed var(--bad);z-index:1;pointer-events:none}.g-dl{border-left:1.5px solid var(--warn)}
+.g-row{display:grid;grid-template-columns:38% 1fr;align-items:center;gap:0;padding:4px 0;cursor:pointer}
+.g-name{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px}
+.g-track{position:relative;height:14px;background:var(--sunk);border-radius:7px}
+.g-track i{position:absolute;top:2px;bottom:2px;border-radius:5px;background:var(--c);min-width:6px}.g-track i.dn{background:var(--line-2)}.g-track i.late{outline:1.5px solid var(--bad)}
 .pd-sum{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;background:none;border:0;text-align:left;font-size:13px;flex-wrap:wrap}
 .pd-sum .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}.pd-sum .dot.bad{background:var(--bad)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:6px 12px 12px;font-size:13px}
@@ -226,7 +254,7 @@ select.ghostin{text-align-last:right}
 .stg-t .mono{font-size:11.5px;white-space:nowrap}
 .stg-plus{margin:4px 0}
 .stg-add{display:flex;gap:8px;margin:6px 0}.stg-add .in{flex:1;min-width:0}
-@media (max-width:860px){.pd{grid-template-columns:1fr;grid-template-areas:'main' 'props' 'tasks' 'docs';gap:12px}.pd-desc{min-height:52px}.npm{flex-direction:column}.npm-side{width:auto;border-left:0;border-top:1px solid var(--line)}}
+@media (max-width:860px){.phero{padding:14px;gap:14px}.ring{width:64px;height:64px}.ring span{width:50px;height:50px;font-size:16px;padding-top:15px}.phero-main .title-in{font-size:22px}.stats{gap:14px}.upnext{max-width:none;width:100%}.bcol{flex-basis:200px}.pd{grid-template-columns:1fr;grid-template-areas:'main' 'props' 'tasks' 'docs';gap:12px}.pd-desc{min-height:52px}.npm{flex-direction:column}.npm-side{width:auto;border-left:0;border-top:1px solid var(--line)}}
 .nav .mlbl{display:none}
 .cmd textarea{flex:1;border:0;background:none;outline:none;padding:8px 0;font:inherit;font-size:15px;min-width:0;resize:none;line-height:1.4;max-height:40vh;color:inherit}
 .dump{margin-top:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -491,6 +519,7 @@ function parseCommand(raw, state, now) {
   }
   let deadline = null;
   if (w.date != null) deadline = w.time != null ? atMin(w.date, w.time) : atMin(w.date, (state.settings.hours[new Date(w.date).getDay()] || [0, 1020])[1]);
+  if (!title) { title = w.rest.replace(/\s{2,}/g, ' ').trim() || text; title = title.charAt(0).toUpperCase() + title.slice(1); }
   return { kind: 'task', title: title || 'Untitled task', duration: duration || 30, priority: priority || 'med', deadline, projectId, hard };
 }
 
@@ -705,6 +734,14 @@ function App() {
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
     updEvent: (id, patch, label) => commit((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
     delEvent: (id) => commit((s) => ({ ...s, events: s.events.filter((e) => e.id !== id) }), 'Event deleted'),
+    startNow: (taskId) => commit((s) => {
+      const at = Math.floor(Date.now() / MIN) * MIN;
+      return { ...s, tasks: s.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const len = Math.max(15, Math.min(remainingMin(t), 90));
+        return { ...t, status: 'doing', locked: [...(t.locked || []).filter((b) => b.end <= at), { id: uid(), start: at, end: at + len * MIN }] };
+      }) };
+    }, 'Started now. The rest of your day reflowed around it'),
     lockBlock: (taskId, start, end, replaceLockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: [...(t.locked || []).filter((b) => b.id !== replaceLockId), { id: uid(), start, end }] }) }), 'Block locked at ' + fmtT(start) + ' — the rest reflowed'),
     unlock: (taskId, lockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: (t.locked || []).filter((b) => b.id !== lockId) }) }), 'Unlocked — Steward will place it'),
     setSettings: (patch) => commit((s) => ({ ...s, settings: { ...s.settings, ...patch } })),
@@ -935,8 +972,8 @@ function TodayView(ctx) {
       <div class="bar"><i style=${{ width: pct + '%' }}></i></div></div>`;
   } else {
     const nx = upcoming[0];
-    nowCard = html`<div class="now"><div class="eyebrow">${hrs && minOfDay(now) < hrs[1] ? 'Open time' : 'Off the clock'}</div><h3>${nx ? 'Next up at ' + fmtT(nx.start) + ': ' + nx.title : 'Nothing scheduled right now'}</h3><div class="meta">${nx ? relD(nx.start, now) : 'Add a task above and Steward will find it a slot.'}</div>
-      ${nx && nx.kind === 'tk' ? html`<div class="acts"><button class="btn sm pri" onClick=${() => A.lockBlock(nx.t.id, Math.ceil(now / SLOT) * SLOT, Math.ceil(now / SLOT) * SLOT + (nx.end - nx.start))}><${Icon} n="play" />Start it now</button></div>` : null}</div>`;
+    nowCard = html`<div class="now"><div class="eyebrow">${hrs && minOfDay(now) < hrs[1] ? 'Free right now' : 'Off the clock'}</div><h3>${nx ? 'Next up at ' + fmtT(nx.start) + ': ' + nx.title : 'Nothing scheduled right now'}</h3><div class="meta">${nx ? relD(nx.start, now) : 'Add a task above and Steward will find it a slot.'}</div>
+      ${nx && nx.kind === 'tk' ? html`<div class="acts"><button class="btn sm pri" onClick=${() => A.startNow(nx.t.id)}><${Icon} n="play" />Start it now</button></div>` : null}</div>`;
   }
 
   return html`<div>
@@ -1127,7 +1164,7 @@ function ProjectsView(ctx) {
     </form>
     <div class="pgrid" style=${{ marginTop: '20px' }}>
       ${state.projects.map((p) => { const ts = state.tasks.filter((t) => t.projectId === p.id); const dn = ts.filter((t) => t.status === 'done').length; const end = Math.max(0, ...ts.filter((t) => t.status !== 'done').map((t) => (plan.info[t.id] || {}).end || 0)); const risk = p.deadline && end > p.deadline; const blocked = ts.filter((t) => t.status === 'blocked').length;
-        return html`<button key=${p.id} class="panel pcard" style=${{ borderLeft: '3px solid ' + P_COLORS[p.color || 'gray'] }} onClick=${() => setOpen(p.id)}>
+        return html`<button key=${p.id} class="panel pcard" style=${{ borderLeft: '3px solid ' + pColor(p.color) }} onClick=${() => setOpen(p.id)}>
           <div class="muted mono" style=${{ fontSize: '11px' }}>${p.deadline ? 'Target ' + fmtD(p.deadline) : 'No target date'}${p.sample ? ' · example' : ''}</div>
           <h3>${p.name}</h3>
           <div class="bar" style=${{ marginTop: 0 }}><i style=${{ width: (ts.length ? dn / ts.length * 100 : 0) + '%' }}></i></div>
@@ -1139,6 +1176,7 @@ function ProjectsView(ctx) {
   </div>`;
 }
 
+const pColor = (c) => P_COLORS[c] || P_COLORS.gray;
 const P_COLORS = { gray: '#8a8a8a', blue: '#6f9ce8', purple: '#a58be6', green: '#72c08a', amber: '#e0a24a', red: '#ec7b70' };
 const P_STATUS = { planning: 'Planning', active: 'In progress', hold: 'On hold', done: 'Done' };
 /* Stages in order: the project's saved list, then any stage names found only on tasks. */
@@ -1157,7 +1195,7 @@ function ProjectFields({ v, set, stageText }) {
     <label>Start date</label><input type="date" class="ghostin" value=${toLocalInput(v.start)} onChange=${(e) => set({ start: fromDateInput(e.target.value) })} />
     <label>Deadline</label><input type="date" class="ghostin" value=${toLocalInput(v.deadline)} onChange=${(e) => set({ deadline: fromDateInput(e.target.value, true) })} />
     <label>Priority</label><select class="ghostin" value=${v.priority || 'med'} onChange=${(e) => set({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select>
-    <label>Color</label><span class="swatches">${Object.entries(P_COLORS).map(([k, c]) => html`<button type="button" key=${k} class=${'sw' + ((v.color || 'gray') === k ? ' on' : '')} style=${{ background: c }} onClick=${() => set({ color: k })} aria-label=${k}></button>`)}</span>
+    <label>Color</label><span class="swatches">${Object.entries(P_COLORS).map(([k, c]) => html`<button type="button" key=${k} class=${'sw' + ((P_COLORS[v.color] ? v.color : 'gray') === k ? ' on' : '')} style=${{ background: c }} onClick=${() => set({ color: k })} aria-label=${k}></button>`)}</span>
     <label>Labels</label><input class="ghostin" value=${(v.labels || []).join(', ')} onInput=${(e) => set({ labels: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} placeholder="None" />
   </div>`;
 }
@@ -1205,6 +1243,10 @@ function ProjectDetail(ctx) {
   const [nt, setNt] = useState('');
   const [newStage, setNewStage] = useState(null);
   const [showProps, setShowProps] = useState(false);
+  const [view, setView2] = useState(() => { try { return localStorage.getItem('steward.pview') || 'list'; } catch (e) { return 'list'; } });
+  const [sugg, setSugg] = useState(null);
+  const [sugBusy, setSugBusy] = useState(false);
+  const pickView = (v) => { setView2(v); try { localStorage.setItem('steward.pview', v); } catch (e) {} };
   if (!p) { back(); return null; }
   const ts = state.tasks.filter((t) => t.projectId === p.id);
   const notes = state.notes.filter((n) => n.projectId === p.id);
@@ -1242,13 +1284,51 @@ function ProjectDetail(ctx) {
   const pts = stages.map((s) => ({ s, r: stageRange(s) })).filter((x) => x.r.total);
   const t0 = Math.min(start, now), t1 = Math.max(now + DAY, p.deadline || 0, ...pts.map((x) => x.r.end || 0));
   const pos = (t) => Math.max(0, Math.min(100, ((t - t0) / (t1 - t0)) * 100));
-  const color = P_COLORS[p.color || 'gray'];
+  const color = pColor(p.color);
+  const pct = ts.length ? Math.round(done / ts.length * 100) : 0;
+  const hoursLeft = open.reduce((a, t) => a + remainingMin(t), 0) / 60;
+  const daysLeft = p.deadline ? Math.ceil((sod(p.deadline) - sod(now)) / DAY) : null;
+  const nextT = open.slice().sort((a, b) => (a.status === 'doing' ? -1 : 0) - (b.status === 'doing' ? -1 : 0) || (info(a).first || 9e15) - (info(b).first || 9e15))[0];
+  const aiOn = typeof kinAIAvailable === 'function' && kinAIAvailable();
+  const suggest = async () => {
+    setSugBusy(true);
+    try {
+      const ask = 'Suggest the next 3-6 concrete tasks for the project "' + p.name + '"' + (p.desc ? ' (' + p.desc + ')' : '') + (current ? ', currently in the "' + current + '" stage' : '') + (p.deadline ? ', due ' + fmtD(p.deadline) : '') + '. Existing tasks: ' + (ts.map((t) => t.title).join('; ') || 'none') + '.';
+      const lines = await kinBrainDump(ask, state);
+      setSugg(lines.length ? lines.map((t) => ({ id: uid(), text: t, on: true })) : []);
+    } catch (e) { ctx.setToast({ text: 'Couldn’t get suggestions (' + (e.message || e) + ')', id: uid() }); }
+    finally { setSugBusy(false); }
+  };
+  const addSugg = () => {
+    sugg.filter((x) => x.on && x.text.trim()).forEach((x) => { const q = parseCommand(x.text, state, Date.now()); A.addTask({ title: q.title || x.text, duration: q.duration || 30, priority: q.priority || 'med', deadline: q.deadline || null, hard: !!(q.hard && q.deadline), projectId: p.id, stage: current || null }); });
+    setSugg(null);
+  };
+  const tl = open.concat(ts.filter((t) => t.status === 'done')).map((t) => ({ t, a: t.status === 'done' ? t.completed : info(t).first, b: t.status === 'done' ? t.completed : info(t).end })).filter((x) => x.a && x.b);
+  const g0 = Math.min(now, ...tl.map((x) => x.a)), g1 = Math.max(now + DAY, p.deadline || 0, ...tl.map((x) => x.b));
+  const gp = (t) => ((t - g0) / (g1 - g0)) * 100;
 
   return html`<div>
     <button class="btn sm ghost" onClick=${back} style=${{ marginBottom: '10px' }}><${Icon} n="left" />Projects</button>
+    <header class="phero" style=${{ '--c': color }}>
+      <div class="ring" style=${{ '--p': pct }} aria-label=${pct + '% done'}><span>${pct}<small>%</small></span></div>
+      <div class="phero-main">
+        <input id="p-name" class="title-in" value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
+        <div class="stats">
+          <div><b>${open.length}</b><span>tasks left</span></div>
+          <div><b>${hoursLeft >= 10 ? Math.round(hoursLeft) : Math.round(hoursLeft * 10) / 10}h</b><span>of work left</span></div>
+          <div class=${daysLeft != null && daysLeft < 0 ? 'bad' : late ? 'warn' : ''}><b>${daysLeft == null ? '—' : daysLeft < 0 ? Math.abs(daysLeft) + 'd' : daysLeft + 'd'}</b><span>${daysLeft == null ? 'no deadline' : daysLeft < 0 ? 'overdue' : 'to deadline'}</span></div>
+          <div><b>${finish ? relD(finish, now) : '—'}</b><span>projected finish</span></div>
+        </div>
+      </div>
+      ${nextT ? html`<div class="upnext">
+        <span class="eyebrow">${nextT.status === 'doing' ? 'In progress' : 'Up next'}</span>
+        <button class="tt" onClick=${() => setDrawer({ type: 'task', id: nextT.id })}>${nextT.title}</button>
+        <span class="muted small">${fmtDur(remainingMin(nextT))}${info(nextT).first ? ' · ' + relD(info(nextT).first, now) + ' ' + fmtT(info(nextT).first) : ''}</span>
+        <div class="acts">${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start now</button>` : null}<button class="btn sm" onClick=${() => A.toggleDone(nextT.id)}><${Icon} n="check" />Done</button></div>
+      </div>` : null}
+    </header>
     <div class="pd">
       <section class="pd-main">
-        <input id="p-name" class="title-in" style=${{ fontSize: '28px' }} value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
         <textarea class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project, and what does done look like?" aria-label="Project description"></textarea>
       </section>
       <section class="pd-docs">
@@ -1268,7 +1348,34 @@ function ProjectDetail(ctx) {
       </section>
 
       <section class="pd-tasks">
-        <div class="grp" style=${{ marginTop: 0 }}>Tasks · ${ts.length}</div>
+        <div class="vtabs">
+          ${[['list', 'List'], ['board', 'Board'], ['timeline', 'Timeline']].map(([k, l]) => html`<button key=${k} class=${view === k ? 'on' : ''} onClick=${() => pickView(k)}>${l}</button>`)}
+          <span style=${{ flex: 1 }}></span>
+          ${aiOn ? html`<button class="btn sm ghost" disabled=${sugBusy} onClick=${suggest}><${Icon} n="spark" />${sugBusy ? 'Thinking…' : 'Suggest tasks'}</button>` : null}
+        </div>
+        ${sugg ? html`<div class="dump" style=${{ margin: '0 0 12px' }}>
+          <div class="ph"><h2>${sugg.length ? 'Suggested next tasks' : 'No suggestions'}</h2></div>
+          ${sugg.map((x) => html`<label class="it" key=${x.id}><input type="checkbox" checked=${x.on} onChange=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, on: e.target.checked } : y))} /><input type="text" value=${x.text} onInput=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, text: e.target.value } : y))} aria-label="Suggested task" /></label>`)}
+          <div class="acts">${sugg.length ? html`<button class="btn pri sm" onClick=${addSugg} disabled=${!sugg.some((x) => x.on)}>Add ${sugg.filter((x) => x.on).length} to ${current ? '“' + current + '”' : 'this project'}</button>` : null}<button class="btn sm ghost" onClick=${() => setSugg(null)}>Dismiss</button></div>
+        </div>` : null}
+        ${view === 'board' ? html`<div class="board">${stages.map((s) => { const st = ts.filter((t) => (t.stage || '') === s); return html`<div key=${s} class="bcol">
+          <div class="bcol-h"><span class="spill" style=${{ '--c': color }}>${s || 'Tasks'}</span><span class="muted mono">${st.filter((t) => t.status === 'done').length}/${st.length}</span></div>
+          ${st.sort((a, b) => (a.status === 'done') - (b.status === 'done') || (info(a).first || 9e15) - (info(b).first || 9e15)).map((t) => html`<button key=${t.id} class=${'bcard' + (t.status === 'done' ? ' dn' : '')} onClick=${() => setDrawer({ type: 'task', id: t.id })}>
+            <b>${t.title}</b><span class="muted mono">${fmtDur(t.duration || 30)}${t.status === 'doing' ? ' · in progress' : ''}${t.status !== 'done' && info(t).first ? ' · ' + fmtD(info(t).first).slice(0, 10) : ''}</span>
+            ${t.priority === 'asap' || t.priority === 'high' || t.hard || (t.labels || []).length ? html`<span class="bcard-tags">${t.priority === 'asap' || t.priority === 'high' ? html`<span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>` : null}${t.hard ? html`<span class="lbl-pill">hard</span>` : null}${(t.labels || []).map((l) => html`<span class="lbl-pill">${l}</span>`)}</span>` : null}
+          </button>`)}
+        </div>`; })}</div>`
+        : view === 'timeline' ? html`<div class="gantt" style=${{ '--c': color }}>
+          <div class="g-axis"><span>${fmtD(g0).slice(4)}</span><span>${fmtD(g1).slice(4)}</span></div>
+          <div class="g-today" style=${{ left: (38 + gp(now) * 0.62) + '%' }}></div>
+          ${p.deadline ? html`<div class="g-dl" style=${{ left: (38 + gp(p.deadline) * 0.62) + '%' }} title="Deadline"></div>` : null}
+          ${tl.sort((x, y) => x.a - y.a).map((x) => html`<div key=${x.t.id} class="g-row" onClick=${() => setDrawer({ type: 'task', id: x.t.id })}>
+            <span class="g-name">${x.t.title}</span>
+            <span class="g-track"><i class=${x.t.status === 'done' ? 'dn' : info(x.t).late ? 'late' : ''} style=${{ left: gp(x.a) + '%', width: Math.max(1.5, gp(x.b) - gp(x.a)) + '%'}}></i></span>
+          </div>`)}
+          ${!tl.length ? html`<div class="empty">Nothing scheduled yet.</div>` : null}
+        </div>`
+        : html`
         ${pts.length ? html`<div class="stl" aria-label="Stage timeline">
           <div class="stl-line"></div>
           <div class="stl-today" style=${{ left: pos(now) + '%' }}><span>Today</span></div>
@@ -1289,6 +1396,7 @@ function ProjectDetail(ctx) {
         ${newStage !== null
           ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); addStage(); }}><input autoFocus class="in" value=${newStage} onInput=${(e) => setNewStage(e.target.value)} placeholder="Stage name, e.g. Execution" aria-label="New stage" /><button class="btn sm pri">Add stage</button><button type="button" class="btn sm ghost" onClick=${() => setNewStage(null)}>Cancel</button></form>`
           : html`<button class="btn sm ghost stg-plus" onClick=${() => setNewStage('')}><${Icon} n="plus" />Add stage</button>`}
+        `}
       </section>
     </div>
   </div>`;
