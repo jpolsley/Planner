@@ -40,8 +40,10 @@ const kinSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } 
 
 /* ---------- memory: what Steward has learned about you ---------- */
 const kinMem = {
-  items: kinLoad(KIN_MEM_KEY, []), subs: new Set(),
-  commit(items) { this.items = items.slice(0, 300); kinSave(KIN_MEM_KEY, this.items); this.subs.forEach((f) => f()); },
+  items: kinLoad(KIN_MEM_KEY, []), gone: kinLoad(KIN_MEM_KEY + '.gone', {}), subs: new Set(),
+  commit(items) { this.items = items.slice(0, 300); kinSave(KIN_MEM_KEY, this.items); this.subs.forEach((f) => f()); if (typeof kinMemChanged === 'function') kinMemChanged(); },
+  /* Replaces memory with a synced copy, without counting it as a local edit. */
+  replace(items, gone) { this.items = items.slice(0, 300); this.gone = gone || {}; kinSave(KIN_MEM_KEY, this.items); kinSave(KIN_MEM_KEY + '.gone', this.gone); this.subs.forEach((f) => f()); },
   add(text, source) {
     text = String(text).trim().replace(/\s+/g, ' ').slice(0, 200);
     if (text.length < 4 || this.items.some((m) => kinSimilar(m.text, text))) return null;
@@ -49,8 +51,8 @@ const kinMem = {
     this.commit([m, ...this.items]);
     return m;
   },
-  update(id, text) { this.commit(this.items.map((m) => (m.id === id ? { ...m, text } : m))); },
-  remove(id) { this.commit(this.items.filter((m) => m.id !== id)); },
+  update(id, text) { this.commit(this.items.map((m) => (m.id === id ? { ...m, text, upd: Date.now() } : m))); },
+  remove(id) { this.gone = { ...this.gone, [id]: Date.now() }; kinSave(KIN_MEM_KEY + '.gone', this.gone); this.commit(this.items.filter((m) => m.id !== id)); },
 };
 const kinTerms = (s) => new Set(String(s).toLowerCase().match(/[a-z0-9']{3,}/g) || []);
 function kinSimilar(a, b) {
@@ -443,14 +445,14 @@ function AssistantView(ctx) {
       const probe = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + spKey.trim(), 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
       if (probe.status === 401) { setToast({ text: 'That Steward key doesn’t match the one in your Space', id: uid() }); return; }
       const idm = spUrl.trim().match(/([\w.-]+)\/([\w.-]+)\/?$/);
-      kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0, id: idm ? idm[1] + '/' + idm[2] : null });
+      kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0, id: idm ? idm[1] + '/' + idm[2] : null }); dispatchEvent(new Event('steward-space'));
       setSpUrl(''); setSpKey(''); restart();
       setToast({ text: 'Connected to your Space' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
     } catch (e) {
       setToast({ text: 'Couldn’t reach that Space (' + (e.message || e) + '). If it’s asleep, wait 30 seconds and try again', id: uid() });
     } finally { setChecking(false); }
   };
-  const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
+  const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} dispatchEvent(new Event('steward-space')); restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
   const sp = kinSpace();
   // Spaces connected before the id was saved: "user-name.hf.space" → "user/name" (usernames rarely contain hyphens).
   if (sp && !sp.id) { const h = sp.url.replace(/^https:\/\//, '').replace(/\.hf\.space$/, ''); const i = h.indexOf('-'); if (i > 0) sp.id = h.slice(0, i) + '/' + h.slice(i + 1); }
@@ -555,7 +557,7 @@ function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
         <button class="btn sm" onClick=${exportMem} disabled=${!kinMem.items.length}>Back up memory</button>
         <button class="btn sm" onClick=${() => fileRef.current.click()}>Restore from file</button>
         <input ref=${fileRef} type="file" accept=".json,application/json" hidden onChange=${(e) => { importMem(e.target.files[0]); e.target.value = ''; }} />
-        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Steward has learned about you?')) kinMem.commit([]); }}>Forget everything</button>` : null}
+        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Steward has learned about you?')) { kinMem.gone = { ...kinMem.gone, ...Object.fromEntries(kinMem.items.map((m) => [m.id, Date.now()])) }; kinSave(KIN_MEM_KEY + '.gone', kinMem.gone); kinMem.commit([]); } }}>Forget everything</button>` : null}
       </div>
     </section>
     <section class="panel">

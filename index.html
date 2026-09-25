@@ -127,6 +127,7 @@ svg{width:18px;height:18px;flex:none}
 /* week */
 .week{display:grid;grid-template-columns:52px repeat(7,minmax(90px,1fr));min-width:760px}
 .weekwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.ad{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--sunk);border:1px solid var(--line-2);color:var(--ink-2);margin-top:3px}.wkhead .ad{display:block}.adrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .wkhead{position:sticky;top:0;z-index:6;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 8px;text-align:left}
 .wkhead small{display:block;font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
 .wkhead b{font:700 20px var(--f-display)}
@@ -244,6 +245,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .g-track i{position:absolute;top:2px;bottom:2px;border-radius:5px;background:var(--c);min-width:6px}.g-track i.dn{background:var(--line-2)}.g-track i.late{outline:1.5px solid var(--bad)}
 .pd-sum{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;background:none;border:0;text-align:left;font-size:13px;flex-wrap:wrap}
 .pd-sum .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}.pd-sum .dot.bad{background:var(--bad)}
+.panel .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}.panel .dot.ok{background:var(--good)}.panel .dot.bad{background:var(--bad)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:6px 12px 12px;font-size:13px}
 .kv label{color:var(--ink-3)}.kv>*:nth-child(even){justify-self:end;text-align:right}
 .kv-v{color:var(--ink-2)}
@@ -318,6 +320,7 @@ select.ghostin{text-align-last:right}
 <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
 <script src="kin-engine.js"></script>
 <script src="assistant.js"></script>
+<script src="sync.js"></script>
 <script>
 /* ================= Steward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
@@ -749,6 +752,49 @@ function App() {
   const [saveOk, setSaveOk] = useState(true);
 
   useEffect(() => { setSaveOk(saveState(state)); }, [state]);
+
+  /* ---- sync across devices, and calendar links, through the user's Space ---- */
+  const stateRef = useRef(state); stateRef.current = state;
+  const [, bump] = useState(0);
+  useEffect(() => { const f = () => bump((n) => n + 1); stewardSync.subs.add(f); return () => stewardSync.subs.delete(f); }, []);
+  const applySynced = useCallback((d) => {
+    if (!d || !d.planner) return;
+    setState((s) => ({ ...s, ...d.planner, plan: s.plan, events: [...(d.planner.events || []), ...s.events.filter((e) => e.src)], allday: s.allday }));
+    if (d.memory) kinMem.replace(d.memory, d.memoryGone);
+  }, []);
+  const doSync = useCallback((opts) => syncNow(() => stateRef.current, applySynced, opts), [applySynced]);
+  const [calStatus, setCalStatus] = useState({});
+  const refreshCalendars = useCallback(async () => {
+    const cals = (stateRef.current.settings.calendars || []).filter((c) => c.url);
+    if (!cals.length || !kinCloudAvailable()) return;
+    for (const cal of cals) {
+      try {
+        const r = await fetchCalendar(cal);
+        setState((s) => ({ ...s, events: [...s.events.filter((e) => e.src !== cal.id), ...r.timed], allday: [...(s.allday || []).filter((e) => e.src !== cal.id), ...r.allday] }));
+        setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), count: r.timed.length + r.allday.length, name: r.name } }));
+      } catch (e) { setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), error: e.message } })); }
+    }
+  }, []);
+  const calKey = (state.settings.calendars || []).map((c) => c.id + c.url).join('|');
+  useEffect(() => {
+    // drop events from calendars that were removed
+    const ids = new Set((state.settings.calendars || []).map((c) => c.id));
+    if (state.events.some((e) => e.src && !ids.has(e.src)) || (state.allday || []).some((e) => !ids.has(e.src))) setState((s) => ({ ...s, events: s.events.filter((e) => !e.src || ids.has(e.src)), allday: (s.allday || []).filter((e) => ids.has(e.src)) }));
+    refreshCalendars();
+  }, [calKey]);
+  useEffect(() => {
+    doSync();
+    const vis = () => { if (document.visibilityState === 'visible') { doSync(); refreshCalendars(); } else doSync({ pushOnly: true, keepalive: true }); };
+    const space = () => { stewardSync.saveMeta({ rev: 0, hash: '' }); doSync(); refreshCalendars(); };
+    document.addEventListener('visibilitychange', vis);
+    addEventListener('steward-space', space);
+    const tick = setInterval(() => { if (document.visibilityState === 'visible') doSync(); }, 90000);
+    const calTick = setInterval(refreshCalendars, 30 * 60000);
+    window.kinMemChanged = () => { clearTimeout(window.__memPush); window.__memPush = setTimeout(() => doSync({ pushOnly: true }), 4000); };
+    return () => { document.removeEventListener('visibilitychange', vis); removeEventListener('steward-space', space); clearInterval(tick); clearInterval(calTick); };
+  }, []);
+  const syncData = useMemo(() => syncPayload(state).planner, [state]);
+  useEffect(() => { const t = setTimeout(() => doSync({ pushOnly: true }), 4000); return () => clearTimeout(t); }, [syncData]);
   useEffect(() => { try { localStorage.setItem('kin.view', view); } catch (e) {} }, [view]);
 
   const commit = useCallback((fn, label) => {
@@ -756,13 +802,13 @@ function App() {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       if (next === prev) return prev;
       hist.current.push(prev); if (hist.current.length > 40) hist.current.shift();
-      return next;
+      return syncStamp(prev, next);
     });
     if (label) setToast({ text: label, undo: true, id: uid() });
   }, []);
   const undo = useCallback(() => {
     const prev = hist.current.pop();
-    if (prev) { setState(prev); setToast({ text: 'Undone', id: uid() }); }
+    if (prev) { setState((cur) => syncStamp(cur, { ...prev, events: [...prev.events.filter((e) => !e.src), ...cur.events.filter((e) => e.src)], allday: cur.allday })); setToast({ text: 'Undone', id: uid() }); }
   }, []);
   useEffect(() => { const k = (e) => { const tag = (e.target.tagName || '').toLowerCase(); if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !['input', 'textarea'].includes(tag)) { e.preventDefault(); undo(); } if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [undo]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.text.length > 90 ? 15000 : 5000); return () => clearTimeout(t); }, [toast]);
@@ -793,7 +839,7 @@ function App() {
     toggleDone: (id) => commit((s) => { const t = s.tasks.find((x) => x.id === id); return t ? withStatus(s, id, t.status === 'done' ? 'todo' : 'done') : s; }, 'Marked complete'),
     moveTask: (id, patch, label) => commit((s) => { const { status, ...rest } = patch; const s2 = status ? withStatus(s, id, status) : s; return { ...s2, tasks: s2.tasks.map((t) => (t.id === id ? { ...t, ...rest } : t)) }; }, label),
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
-    updEvent: (id, patch, label) => commit((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
+    updEvent: (id, patch, label) => commit((s) => (s.events.some((e) => e.id === id && e.src) ? s : { ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
     delEvent: (id) => commit((s) => ({ ...s, events: s.events.filter((e) => e.id !== id) }), 'Event deleted'),
     startNow: (taskId) => commit((s) => {
       const at = Math.floor(Date.now() / MIN) * MIN;
@@ -809,7 +855,7 @@ function App() {
     addProject: (p) => { commit((s) => ({ ...s, projects: [...s.projects, p] })); },
     updProject: (id, patch) => commit((s) => ({ ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
     delProject: (id) => commit((s) => ({ ...s, projects: s.projects.filter((p) => p.id !== id), tasks: s.tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)) }), 'Project deleted (tasks kept)'),
-    saveNote: (n) => setState((s) => ({ ...s, notes: s.notes.some((x) => x.id === n.id) ? s.notes.map((x) => (x.id === n.id ? n : x)) : [n, ...s.notes] })),
+    saveNote: (n) => setState((s) => syncStamp(s, { ...s, notes: s.notes.some((x) => x.id === n.id) ? s.notes.map((x) => (x.id === n.id ? n : x)) : [n, ...s.notes] })),
     delNote: (id) => commit((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }), 'Note deleted'),
   }), [commit]);
 
@@ -857,7 +903,7 @@ function App() {
       ${view === 'projects' ? html`<${ProjectsView} ...${ctx} />` : null}
       ${view === 'notes' ? html`<${NotesView} ...${ctx} />` : null}
       ${view === 'assistant' ? html`<${AssistantView} ...${ctx} />` : null}
-      ${view === 'settings' ? html`<${SettingsView} ...${ctx} setState=${setState} />` : null}
+      ${view === 'settings' ? html`<${SettingsView} ...${ctx} setState=${setState} doSync=${doSync} calStatus=${calStatus} refreshCalendars=${refreshCalendars} />` : null}
     </div></main>
     ${drawer && drawer.type === 'task' ? html`<${TaskDrawer} ...${ctx} id=${drawer.id} onClose=${() => setDrawer(null)} />` : null}
     ${drawer && drawer.type === 'event' ? html`<${EventModal} ...${ctx} ev=${drawer.ev} onClose=${() => setDrawer(null)} />` : null}
@@ -942,7 +988,7 @@ function Hours({ range, ppm }) {
   return html`<div class="hours" style=${{ height: (range[1] - range[0]) * ppm + 'px' }}>${out}</div>`;
 }
 
-function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty }) {
+function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty, setToast }) {
   const H = (range[1] - range[0]) * ppm;
   const [drag, setDrag] = useState(null);
   const y = (t) => (minOfDay(t) - range[0]) * ppm;
@@ -971,6 +1017,7 @@ function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty }) {
     if (!d.moved) { if (d.kind === 'ev') setDrawer({ type: 'event', ev: state.events.find((x) => x.id === d.id) }); else setDrawer({ type: 'task', id: d.taskId }); return; }
     const dm = Math.round(d.dy / ppm);
     const ns = atMin(d.targetDay, minOfDay(d.start) + dm), ne = ns + (d.end - d.start);
+    if (d.kind === 'ev' && (state.events.find((x) => x.id === d.id) || {}).src) { setToast && setToast({ text: 'That meeting comes from your calendar. Move it there.', id: uid() }); return; }
     if (d.kind === 'ev') A.updEvent(d.id, { start: ns, end: ne }, 'Moved “' + d.title + '” to ' + fmtT(ns));
     else A.lockBlock(d.taskId, ns, ne, d.lockId);
   };
@@ -1038,7 +1085,7 @@ function TodayView(ctx) {
   }
 
   return html`<div>
-    <header class="hdr"><div><div class="sub">${fmtD(now)} · ${fmtDur(Math.round(plannedMin))} of focus planned · ${doneToday} done</div><h1>${greeting}, JP.</h1></div></header>
+    <header class="hdr"><div><div class="sub">${fmtD(now)} · ${fmtDur(Math.round(plannedMin))} of focus planned · ${doneToday} done</div><h1>${greeting}, JP.</h1>${(state.allday || []).some((a) => a.day === d0) ? html`<div class="adrow">${state.allday.filter((a) => a.day === d0).map((a) => html`<span key=${a.id} class="ad">${a.title}</span>`)}</div>` : null}</div></header>
     <${CommandBar} ...${ctx} />
     ${state.hasSample ? html`<p class="muted" style=${{ fontSize: '12.5px', margin: '10px 2px 0' }}>Showing example tasks and meetings so you can see how it works. Clear them any time in Settings.</p>` : null}
     <div class="today">
@@ -1110,7 +1157,7 @@ function CalendarView(ctx) {
     <p class="muted" style=${{ margin: '-6px 0 14px', fontSize: '13px' }}>Drag a work block to lock it at a new time; everything flexible reflows around it. Drag meetings to reschedule them. Double-click empty space to add a meeting.</p>
     <div class="weekwrap"><div class="week">
       <div class="wkhead"></div>
-      ${days.map((d) => { const l = load(d); return html`<div key=${d} class=${'wkhead' + (d === sod(now) ? ' tdy' : '')}><small>${WD[new Date(d).getDay()]}</small><b>${new Date(d).getDate()}</b>${l != null ? html`<div class="load" style=${l > 100 ? { color: 'var(--bad)' } : null}>${l}% booked</div>` : html`<div class="load">Off</div>`}</div>`; })}
+      ${days.map((d) => { const l = load(d); return html`<div key=${d} class=${'wkhead' + (d === sod(now) ? ' tdy' : '')}><small>${WD[new Date(d).getDay()]}</small><b>${new Date(d).getDate()}</b>${(state.allday || []).filter((a) => a.day === d).map((a) => html`<div key=${a.id} class="ad" title=${a.title}>${a.title}</div>`)}${l != null ? html`<div class="load" style=${l > 100 ? { color: 'var(--bad)' } : null}>${l}% booked</div>` : html`<div class="load">Off</div>`}</div>`; })}
       <${Hours} range=${range} ppm=${ppm} />
       ${days.map((d) => html`<${DayCol} key=${d} day=${d} range=${range} ppm=${ppm} ...${ctx} onEmpty=${(t) => setDrawer({ type: 'event', ev: { start: t, end: t + 30 * MIN, title: '' } })} />`)}
     </div></div>
@@ -1235,6 +1282,13 @@ function TaskDrawer(ctx) {
 function EventModal({ ev, A, onClose, now }) {
   const isNew = !ev.id;
   const [f, setF] = useState({ title: ev.title || '', start: ev.start, end: ev.end, kind: ev.kind || 'meeting' });
+  if (ev.src) return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}><div class="modal" style=${{ maxWidth: '440px' }} role="dialog" aria-label="Meeting">
+    <div class="muted mono" style=${{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em' }}>From your calendar · Steward plans around it</div>
+    <h2 style=${{ margin: '6px 0' }}>${ev.title}</h2>
+    <div class="muted">${relD(ev.start, now)} · ${fmtT(ev.start)}–${fmtT(ev.end)}${ev.location ? ' · ' + ev.location : ''}</div>
+    <p class="muted small">To change it, edit it in your calendar app. Steward picks up changes within 30 minutes.</p>
+    <div style=${{ display: 'flex' }}><span style=${{ flex: 1 }}></span><button class="btn" onClick=${onClose}>Close</button></div>
+  </div></div>`;
   const dur = Math.round((f.end - f.start) / MIN);
   const save = (e) => { e.preventDefault(); const t = f.title.trim() || 'Meeting'; if (isNew) A.addEvent({ ...f, title: t }); else A.updEvent(ev.id, { ...f, title: t }, 'Saved'); onClose(); };
   return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}><form class="modal" onSubmit=${save} style=${{ maxWidth: '440px' }}>
@@ -1748,7 +1802,41 @@ function SearchModal({ state, now, initial, onClose, setDrawer, setView }) {
 }
 
 /* ================= Settings ================= */
-function SettingsView({ state, A, setState, commit, setToast }) {
+function SyncPanel({ doSync, setView }) {
+  const sp = kinSpace();
+  const m = stewardSync.meta, on = stewardSync.on();
+  const toggle = (v) => { kinSave(KIN_SPACE_KEY, { ...sp, sync: v }); stewardSync.set({}); if (v) doSync(); };
+  const line = !sp || !sp.url ? 'Connect your Space (Assistant → Your Space) to keep this planner in sync on your phone and computer.'
+    : !on ? 'Sync is off on this device.'
+    : stewardSync.status === 'syncing' ? 'Syncing…'
+    : stewardSync.status === 'error' ? stewardSync.error
+    : m.last ? 'Synced ' + relD(m.last, Date.now()).toLowerCase() + ' at ' + fmtT(m.last) + '.' : 'Waiting for the first sync…';
+  return html`<div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Sync across devices</h2><span class="grow"></span>
+    ${sp && sp.url ? html`<label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${on} onChange=${(e) => toggle(e.target.checked)} />On</label>` : html`<button class="btn sm" onClick=${() => setView('assistant')}>Connect</button>`}</div>
+    <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
+      <div style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}><span class=${'dot ' + (stewardSync.status === 'error' ? 'bad' : on ? 'ok' : '')}></span><span style=${stewardSync.status === 'error' ? { color: 'var(--bad)' } : null}>${line}</span><span class="grow"></span>${on ? html`<button class="btn sm" disabled=${stewardSync.status === 'syncing'} onClick=${() => doSync()}>Sync now</button>` : null}</div>
+      ${sp && sp.url ? html`<p class="muted" style=${{ margin: 0 }}>Your tasks, projects, notes, settings and what Steward has learned are saved by your Space to a private Hugging Face dataset (<b>steward-data</b>). Connect the same Space on each device. ${stewardSync.status === 'error' && /save|open|403|401|permission|write/i.test(stewardSync.error) ? 'For saving, your Space’s HF_TOKEN needs write access. Edit the token on Hugging Face to allow write access to your repos, or add a second secret named HF_WRITE_TOKEN with a write token, then restart the Space.' : ''}</p>` : null}
+    </div></div>`;
+}
+
+function CalendarsPanel({ state, A, calStatus, refreshCalendars, setToast }) {
+  const cals = state.settings.calendars || [];
+  const [url, setUrl] = useState('');
+  const connected = kinCloudAvailable();
+  const add = (e) => { e.preventDefault(); const u = url.trim(); if (!u) return; A.setSettings({ calendars: [...cals, { id: 'cal' + uid().slice(0, 6), url: u }] }); setUrl(''); setToast({ text: 'Calendar added. Reading it now…', id: uid() }); };
+  return html`<div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Calendars</h2><span class="grow"></span>${cals.length ? html`<button class="btn sm" onClick=${refreshCalendars}>Refresh</button>` : null}</div>
+    <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
+      ${cals.map((c) => { const st = calStatus[c.id] || {}; return html`<div key=${c.id} style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <span class=${'dot ' + (st.error ? 'bad' : st.at ? 'ok' : '')}></span>
+        <div style=${{ flex: 1, minWidth: 0 }}><b>${st.name || c.name || 'Calendar'}</b><div class="muted" style=${{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>${st.error ? html`<span style=${{ color: 'var(--bad)' }}>${st.error}</span>` : st.at ? st.count + ' events in the next 4 weeks · updated ' + fmtT(st.at) : connected ? 'Reading…' : 'Connect your Space to read this calendar.'}</div></div>
+        <button class="btn sm ghost danger" onClick=${() => A.setSettings({ calendars: cals.filter((x) => x.id !== c.id) })}>Remove</button>
+      </div>`; })}
+      <form onSubmit=${add} style=${{ display: 'flex', gap: '8px' }}><input class="in" style=${{ flex: 1 }} value=${url} onInput=${(e) => setUrl(e.target.value)} placeholder="Paste a calendar’s secret address (.ics)" aria-label="Calendar link" /><button class="btn sm pri" disabled=${!url.trim()}>Add</button></form>
+      <p class="muted" style=${{ margin: 0 }}>Steward schedules around these meetings. They refresh every 30 minutes and are read only here. <b>Google:</b> Calendar settings → your calendar → <i>Secret address in iCal format</i>. <b>Outlook:</b> Settings → Calendar → Shared calendars → <i>Publish a calendar</i> → ICS link. <b>iCloud:</b> share the calendar publicly and copy the link.</p>
+    </div></div>`;
+}
+
+function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus, refreshCalendars, setView }) {
   const s = state.settings;
   const [imp, setImp] = useState('');
   const [confirm, setConfirm] = useState(false);
@@ -1757,7 +1845,10 @@ function SettingsView({ state, A, setState, commit, setToast }) {
   const setDay = (d, v) => A.setSettings({ hours: { ...s.hours, [d]: v } });
   const exportData = () => { const txt = JSON.stringify(state); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => setToast({ text: 'Backup copied — paste it into a note or file', id: uid() }), () => { setImp(txt); setToast({ text: 'Copy the backup from the box below', id: uid() }); }); };
   return html`<div style=${{ maxWidth: '720px' }}>
-    <header class="hdr"><div><div class="sub">Everything stays on this device</div><h1>Settings</h1></div></header>
+    <header class="hdr"><div><div class="sub">${stewardSync.on() ? 'Synced through your Space' : 'Everything stays on this device'}</div><h1>Settings</h1></div></header>
+    <${SyncPanel} doSync=${doSync} setView=${setView} />
+    <${CalendarsPanel} state=${state} A=${A} calStatus=${calStatus} refreshCalendars=${refreshCalendars} setToast=${setToast} />
+    <div style=${{ height: '16px' }}></div>
     <div class="panel"><div class="ph"><h2>Working hours</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       ${[1, 2, 3, 4, 5, 6, 0].map((d) => { const h = s.hours[d]; return html`<div key=${d} class="hrs"><label style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" id=${'wd' + d} checked=${!!h} onChange=${(e) => setDay(d, e.target.checked ? [540, 1020] : null)} />${WD[d]}</label>
         ${h ? html`<input class="in" type="time" value=${toT(h[0])} onChange=${(e) => setDay(d, [fromT(e.target.value), h[1]])} aria-label=${WD[d] + ' start'} /><span class="muted">to</span><input class="in" type="time" value=${toT(h[1])} onChange=${(e) => setDay(d, [h[0], fromT(e.target.value)])} aria-label=${WD[d] + ' end'} />` : html`<span class="muted" style=${{ gridColumn: 'span 3' }}>Off</span>`}</div>`; })}
@@ -1776,13 +1867,13 @@ function SettingsView({ state, A, setState, commit, setToast }) {
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>About the assistant</h2></div><div style=${{ padding: '14px 16px', fontSize: '13.5px', color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <p style=${{ margin: 0 }}>Everything runs on this device with no account and no API key. Quick capture, project drafts and pulling actions out of notes use Steward’s built-in language rules, so they're fast and predictable. The calendar engine is real scheduling code, not AI.</p>
-      <p style=${{ margin: 0 }}>Not connected: Google/Outlook calendar sync, booking links, meeting recording. The planner works without them.</p>
+      <p style=${{ margin: 0 }}>Calendars come in through your Space as read-only links. Not included: booking links and meeting recording.</p>
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Your data</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button class="btn sm" onClick=${exportData}>Copy backup</button>
         ${state.hasSample ? html`<button class="btn sm" onClick=${() => commit((st) => ({ ...st, hasSample: false, tasks: st.tasks.filter((t) => !t.sample), projects: st.projects.filter((p) => !p.sample), events: st.events.filter((e) => !e.sample), notes: st.notes.filter((n) => !n.sample) }), 'Example data cleared')}>Clear example data</button>` : null}
-        ${confirm ? html`<button class="btn sm danger" onClick=${() => { setState({ v: 1, onboarded: false, settings: defaultSettings(), projects: [], tasks: [], events: [], notes: [], plan: null }); }}>Yes, erase everything</button><button class="btn sm ghost" onClick=${() => setConfirm(false)}>Cancel</button>` : html`<button class="btn sm ghost danger" onClick=${() => setConfirm(true)}>Erase all data…</button>`}
+        ${confirm ? html`<button class="btn sm danger" onClick=${() => { setState((cur) => syncStamp(cur, { v: 1, onboarded: false, settings: defaultSettings(), projects: [], tasks: [], events: [], notes: [], plan: null, gone: cur.gone })); }}>${stewardSync.on() ? 'Yes, erase it on every synced device' : 'Yes, erase everything'}</button><button class="btn sm ghost" onClick=${() => setConfirm(false)}>Cancel</button>` : html`<button class="btn sm ghost danger" onClick=${() => setConfirm(true)}>Erase all data…</button>`}
       </div>
       <textarea id="imp" class="in" value=${imp} onInput=${(e) => setImp(e.target.value)} placeholder="Paste a backup here to restore it"></textarea>
       <div><button class="btn sm" disabled=${!imp.trim()} onClick=${() => { try { const d = JSON.parse(imp); if (!d.tasks || !d.settings) throw 0; commit(d, 'Backup restored'); setImp(''); } catch (e) { setToast({ text: 'That isn’t a Steward backup — paste the whole copied text', id: uid() }); } }}>Restore backup</button></div>
