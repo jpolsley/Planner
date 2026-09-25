@@ -291,11 +291,23 @@ async function kinBrainDump(text, state) {
   const open = state.tasks.filter((t) => t.status !== 'done').map((t) => '- ' + t.title).slice(0, 40).join('\n') || '(none)';
   const facts = kinRecall(text, 8).map((m) => '- ' + m.text).join('\n');
   const sys = 'You turn a messy brain dump into clear, separate to-dos for a planner. Output ONLY task lines, one per line, each starting with "- ". '
-    + 'Each line: a short title starting with a verb; then, when the dump implies them, a duration (e.g. 30m, 1h), a day or deadline (e.g. "by fri", "tomorrow", "oct 3"), and "high", "low" or "asap". '
+    + 'Each line: a short title starting with a verb; then, when the dump implies them, a duration (e.g. 30m, 1h), a day or deadline (e.g. "by fri", "tomorrow", "oct 3"), and "high", "low" or "asap"; and for a recurring chore a repeat such as "every monday", "daily" or "monthly". '
     + 'For a meeting or call at a set time write it like "Call Sam fri 2pm". Every separate action is its own line: "do laundry and clean the kitchen" becomes "- Do laundry" and "- Clean the kitchen". Skip anything already in the existing list. No headings, numbering, or commentary.';
   const user = 'Today is ' + fmtD(now) + ' ' + fmtT(now) + '.\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + 'Existing open tasks:\n' + open + '\n\nBrain dump:\n' + text;
   const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 500, temperature: 0.2 });
   return suggestionLines(out).map((l) => l.replace(/^\[.\]\s*/, '').replace(/\s*[.;]$/, '')).filter((l) => l.length > 2).slice(0, 25);
+}
+/* Drafts the concrete steps for one task, as a checklist. */
+async function kinBreakdown(t, state) {
+  await kinReady();
+  const p = state.projects.find((x) => x.id === t.projectId);
+  const have = (t.checklist || []).map((x) => '- ' + x.text).join('\n');
+  const facts = kinRecall(t.title + ' ' + (t.desc || ''), 6).map((m) => '- ' + m.text).join('\n');
+  const sys = 'You break one task into the small, concrete steps needed to finish it. Output ONLY 3 to 8 lines, each starting with "- ", each a short step starting with a verb, in the order they happen. No headings, numbering, times or commentary.';
+  const user = (facts ? 'About the user:\n' + facts + '\n' : '') + 'Task: ' + t.title + (p ? '\nProject: ' + p.name + (p.desc ? ' (' + p.desc.slice(0, 300) + ')' : '') : '') + (t.desc ? '\nNotes: ' + t.desc.slice(0, 800) : '') + '\nEstimate: ' + fmtDur(t.duration || 30) + (have ? '\nSteps already listed (don’t repeat them):\n' + have : '');
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 260, temperature: 0.3, docs: false });
+  const seen = new Set((t.checklist || []).map((x) => x.text.toLowerCase()));
+  return suggestionLines(out).map((l) => l.replace(/^\[.\]\s*/, '').replace(/\s*[.;]$/, '')).filter((l) => l.length > 2 && !seen.has(l.toLowerCase())).slice(0, 8);
 }
 async function kinFilterTasks(text, state) {
   await kinReady();
