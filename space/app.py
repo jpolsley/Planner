@@ -7,14 +7,21 @@ A small server between the Steward app and Hugging Face:
 - streams replies from a large hosted model, trying the next model if one is unavailable
 
 Runs on a free Gradio Space using Gradio's Server mode (gr.Server is a FastAPI app that Spaces launches).
+- keeps your planner in sync across devices, saved to a private Hugging Face dataset
+- reads calendar links (.ics) so your real meetings show up in Steward
+
 Space secrets: HF_TOKEN (fine-grained, "Make calls to Inference Providers"), STEWARD_KEY (any long passphrase).
-Optional variable: MODELS (comma-separated model ids).
+For sync, HF_TOKEN also needs write access to your repos (or add a separate HF_WRITE_TOKEN secret).
+Optional variables: MODELS (comma-separated model ids), STEWARD_DATA (dataset id, default <you>/steward-data).
 Browser access (CORS) is handled by Gradio itself; the STEWARD_KEY is what keeps the Space private.
 """
+import asyncio
 import json
 import os
 import re
 import secrets
+import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -105,7 +112,8 @@ def _authorized(request: Request) -> bool:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "configured": bool(HF_TOKEN and STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS}
+    return {"ok": True, "configured": bool(HF_TOKEN and STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS,
+            "features": ["sync", "calendar"], "sync": DATA_REPO or "this server only (temporary)"}
 
 
 @app.post("/v1/chat/completions")
@@ -166,6 +174,157 @@ async def chat(request: Request):
     return JSONResponse({"error": last_error}, status_code=status)
 
 
+# ---------- sync: one private dataset file holds the planner, shared by every device ----------
+DATA_REPO = os.environ.get("STEWARD_DATA") or (f"{os.environ['SPACE_AUTHOR_NAME']}/steward-data" if os.environ.get("SPACE_AUTHOR_NAME") else "")
+DATA_TOKEN = os.environ.get("HF_WRITE_TOKEN") or HF_TOKEN
+LOCAL_DATA = Path(os.environ.get("STEWARD_DATA_FILE", "/tmp/steward-sync.json"))  # used when not on a Space
+MAX_SYNC_BYTES = 8_000_000
+STORE = {"rev": 0, "updated": 0, "data": None, "loaded": False, "error": "", "flush": None, "saved_rev": 0}
+STORE_LOCK = asyncio.Lock()
+
+
+def _hub_read():
+    from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub.utils import EntryNotFoundError, RepositoryNotFoundError
+    api = HfApi(token=DATA_TOKEN)
+    try:
+        path = hf_hub_download(DATA_REPO, "steward.json", repo_type="dataset", token=DATA_TOKEN, force_download=True)
+        return json.loads(Path(path).read_text())
+    except RepositoryNotFoundError:
+        api.create_repo(DATA_REPO, repo_type="dataset", private=True, exist_ok=True)
+        return None
+    except EntryNotFoundError:
+        return None
+
+
+def _hub_write(doc):
+    from huggingface_hub import HfApi
+    api = HfApi(token=DATA_TOKEN)
+    api.create_repo(DATA_REPO, repo_type="dataset", private=True, exist_ok=True)
+    api.upload_file(path_or_fileobj=json.dumps(doc).encode(), path_in_repo="steward.json", repo_id=DATA_REPO,
+                    repo_type="dataset", commit_message=f"Steward sync {doc['rev']}")
+
+
+async def _ensure_loaded():
+    if STORE["loaded"]:
+        return
+    try:
+        if DATA_REPO:
+            doc = await asyncio.to_thread(_hub_read)
+        else:
+            doc = json.loads(LOCAL_DATA.read_text()) if LOCAL_DATA.exists() else None
+        if doc:
+            STORE.update(rev=doc.get("rev", 0), updated=doc.get("updated", 0), data=doc.get("data"), saved_rev=doc.get("rev", 0))
+        STORE["error"] = ""
+        STORE["loaded"] = True
+    except Exception as e:
+        STORE["error"] = f"Couldn't open {DATA_REPO or LOCAL_DATA}: {e}"
+        print(STORE["error"])
+        raise
+
+
+async def _flush_soon(delay=20):
+    """Saves at most every `delay` seconds, so a burst of edits becomes one dataset commit."""
+    await asyncio.sleep(delay)
+    STORE["flush"] = None
+    doc = {"rev": STORE["rev"], "updated": STORE["updated"], "data": STORE["data"]}
+    try:
+        if DATA_REPO:
+            await asyncio.to_thread(_hub_write, doc)
+        else:
+            LOCAL_DATA.write_text(json.dumps(doc))
+        STORE["saved_rev"] = doc["rev"]
+        STORE["error"] = ""
+    except Exception as e:
+        STORE["error"] = f"Couldn't save to {DATA_REPO or LOCAL_DATA}: {e}"
+        print(STORE["error"])
+        if STORE["flush"] is None:
+            STORE["flush"] = asyncio.create_task(_flush_soon(120))
+
+
+def _sync_state():
+    return {"rev": STORE["rev"], "updated": STORE["updated"], "saved": STORE["saved_rev"] == STORE["rev"], "error": STORE["error"]}
+
+
+@app.get("/v1/sync")
+async def sync_get(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    try:
+        await _ensure_loaded()
+    except Exception:
+        return JSONResponse({"error": STORE["error"]}, status_code=503)
+    return {**_sync_state(), "data": STORE["data"]}
+
+
+@app.put("/v1/sync")
+async def sync_put(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    raw = await request.body()
+    if len(raw) > MAX_SYNC_BYTES:
+        return JSONResponse({"error": "Your planner is too large to sync."}, status_code=413)
+    body = json.loads(raw)
+    try:
+        await _ensure_loaded()
+    except Exception:
+        return JSONResponse({"error": STORE["error"]}, status_code=503)
+    async with STORE_LOCK:
+        if STORE["data"] is not None and int(body.get("base_rev", -1)) != STORE["rev"]:
+            # another device saved first: send its version back so this one can merge
+            return JSONResponse({**_sync_state(), "data": STORE["data"]}, status_code=409)
+        STORE.update(rev=STORE["rev"] + 1, updated=int(time.time() * 1000), data=body.get("data"))
+        if STORE["flush"] is None:
+            STORE["flush"] = asyncio.create_task(_flush_soon())
+        return _sync_state()
+
+
+# ---------- calendars: read a calendar's secret .ics link and return the next few weeks ----------
+def _ms(v):
+    """Epoch ms for a timezone-aware time; a local ISO string for floating times and all-day dates."""
+    if isinstance(v, datetime):
+        return int(v.timestamp() * 1000) if v.tzinfo else v.strftime("%Y-%m-%dT%H:%M:%S")
+    return v.strftime("%Y-%m-%dT00:00:00")
+
+
+@app.post("/v1/calendar")
+async def calendar(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    body = await request.json()
+    url = str(body.get("url", "")).strip()
+    url = re.sub(r"^webcals?://", "https://", url, flags=re.I)
+    if not re.match(r"^https?://", url, re.I):
+        return JSONResponse({"error": "That isn't a calendar link. Copy the one ending in .ics."}, status_code=400)
+    days = max(1, min(int(body.get("days", 28)), 90))
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            res = await client.get(url, headers={"User-Agent": "Steward calendar"})
+        if res.status_code != 200:
+            return JSONResponse({"error": f"The calendar link answered {res.status_code}."}, status_code=502)
+        import icalendar
+        import recurring_ical_events
+        cal = icalendar.Calendar.from_ical(res.content)
+        start = datetime.now(timezone.utc) - timedelta(days=1)
+        items = recurring_ical_events.of(cal).between(start, start + timedelta(days=days + 1))
+    except Exception as e:
+        return JSONResponse({"error": f"Couldn't read that calendar: {e}"}, status_code=502)
+    out = []
+    for ev in items:
+        s, e = ev.get("DTSTART"), ev.get("DTEND")
+        if s is None:
+            continue
+        s = s.dt
+        e = e.dt if e is not None else (s + timedelta(days=1) if not isinstance(s, datetime) else s + timedelta(minutes=30))
+        if str(ev.get("TRANSP", "")).upper() == "TRANSPARENT" and isinstance(s, datetime):
+            continue  # marked "free": doesn't block time
+        out.append({"uid": str(ev.get("UID", "")), "title": str(ev.get("SUMMARY", "Busy")) or "Busy",
+                    "start": _ms(s), "end": _ms(e), "allDay": not isinstance(s, datetime),
+                    "location": str(ev.get("LOCATION", "") or "")})
+    name = str(cal.get("X-WR-CALNAME", "") or "")
+    return {"name": name, "events": out[:800]}
+
+
 # ---------- status page (what you see on the Space's page) ----------
 @app.get("/", response_class=HTMLResponse)
 def status_page():
@@ -179,6 +338,7 @@ def status_page():
 @media (prefers-color-scheme:dark){{body{{color:#e6ece9;background:#121715}}}}</style></head><body>
 <h1>🧭 Steward's AI server</h1><p><b>Status:</b> {status}</p>
 <p><b>Models, in order:</b> {esc(", ".join(MODELS))}</p>
+<p><b>Sync saves to:</b> {esc(h["sync"])}{(" · ⚠️ " + esc(STORE["error"])) if STORE["error"] else ""}</p>
 <p><b>Documents in docs/:</b> {esc(", ".join(docs)) if docs else "none yet. Upload .txt, .md or .pdf files to the docs folder."}</p>
 </body></html>"""
 

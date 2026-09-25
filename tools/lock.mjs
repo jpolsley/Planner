@@ -13,7 +13,7 @@ if (!password || password.length < 8) {
 const ITER = 600000;
 
 let app = readFileSync('index.html', 'utf8');
-for (const file of ['kin-engine.js', 'assistant.js']) {
+for (const file of ['kin-engine.js', 'assistant.js', 'sync.js']) {
   const tag = `<script src="${file}"></script>`;
   if (!app.includes(tag)) throw new Error('index.html is missing ' + tag);
   app = app.replace(tag, () => '<script>' + readFileSync(file, 'utf8').replace(/<\/script/gi, '<\\/script') + '</script>');

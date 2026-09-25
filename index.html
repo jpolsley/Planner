@@ -127,6 +127,7 @@ svg{width:18px;height:18px;flex:none}
 /* week */
 .week{display:grid;grid-template-columns:52px repeat(7,minmax(90px,1fr));min-width:760px}
 .weekwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.ad{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--sunk);border:1px solid var(--line-2);color:var(--ink-2);margin-top:3px}.wkhead .ad{display:block}.adrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .wkhead{position:sticky;top:0;z-index:6;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 8px;text-align:left}
 .wkhead small{display:block;font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
 .wkhead b{font:700 20px var(--f-display)}
@@ -170,6 +171,29 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .editor textarea{border:0;background:none;outline:none;width:100%;min-height:340px;font:14.5px/1.65 var(--f-body);resize:vertical}
 .hl{background:var(--warn-soft);border-radius:3px}
 /* toast */
+.focus{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--line);overflow:hidden}
+.focus .fdot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none;animation:fpulse 1.6s ease-in-out infinite}
+@keyframes fpulse{50%{opacity:.35}}
+.focus .ftitle{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;color:var(--ink)}
+.focus .ftitle b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.focus .ftitle small{color:var(--ink-3);font-size:11.5px}
+.focus .fclock{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.focus .fbar{position:absolute;left:0;bottom:0;height:2px;background:var(--ink-2)}
+.rit{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.rit-h{display:flex;flex-direction:column;gap:2px}.rit .eyebrow,.wr .eyebrow{font:500 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.rit .acts{display:flex;gap:6px;flex-wrap:wrap}
+.rit-list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.rit-t{display:flex;align-items:center;gap:10px;padding:8px 0;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:var(--ink);flex-wrap:wrap}
+.rit-t>span:nth-child(2){flex:1;min-width:0}.rit-t .tt{flex:1;min-width:160px;background:none;border:0;padding:0;text-align:left;color:var(--ink)}
+.rit-acts{display:flex;gap:4px}
+.rit-ai{padding:12px 14px;border-radius:10px;background:var(--sunk);border:1px solid var(--line)}
+.aibody p{margin:0 0 8px}.aibody p:last-child{margin:0}.aibody h4{margin:10px 0 4px;font-size:13px}.aibody .li{padding-left:14px;position:relative;margin:2px 0}.aibody .li:before{content:'•';position:absolute;left:2px;color:var(--ink-3)}
+.rit-links{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.wr{max-width:640px;width:100%;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.wr-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.wr-stats>div{display:flex;flex-direction:column;padding:10px 12px;border:1px solid var(--line);border-radius:10px}.wr-stats b{font-size:20px}.wr-stats span{font-size:11.5px;color:var(--ink-3)}.wr-stats .bad b{color:var(--bad)}
+@media (max-width:860px){.wr-stats{grid-template-columns:1fr 1fr}}
+.actcard{margin-top:8px;padding:10px 12px;border:1px solid var(--line-2);border-radius:12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.tmr{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@media (max-width:860px){.focus{padding:8px 12px;gap:8px}.focus .fclock{font-size:15px}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--ground);padding:10px 12px 10px 16px;border-radius:12px;display:flex;gap:12px;align-items:center;z-index:60;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
 .toast button{background:none;border:0;color:var(--accent-soft);font-weight:600}
 .banner{display:flex;gap:12px;align-items:center;padding:10px 14px;border-radius:12px;background:var(--meet-soft);color:var(--meet-ink);margin-bottom:16px;flex-wrap:wrap}
@@ -244,6 +268,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .g-track i{position:absolute;top:2px;bottom:2px;border-radius:5px;background:var(--c);min-width:6px}.g-track i.dn{background:var(--line-2)}.g-track i.late{outline:1.5px solid var(--bad)}
 .pd-sum{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;background:none;border:0;text-align:left;font-size:13px;flex-wrap:wrap}
 .pd-sum .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}.pd-sum .dot.bad{background:var(--bad)}
+.panel .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}.panel .dot.ok{background:var(--good)}.panel .dot.bad{background:var(--bad)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:6px 12px 12px;font-size:13px}
 .kv label{color:var(--ink-3)}.kv>*:nth-child(even){justify-self:end;text-align:right}
 .kv-v{color:var(--ink-2)}
@@ -318,6 +343,7 @@ select.ghostin{text-align-last:right}
 <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
 <script src="kin-engine.js"></script>
 <script src="assistant.js"></script>
+<script src="sync.js"></script>
 <script>
 /* ================= Steward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
@@ -505,12 +531,39 @@ function nextOccurrence(t, now) {
     deadline: t.deadline ? t.deadline + delta : null, startDate: t.startDate && t.deadline ? t.startDate + delta : open,
     checklist: (t.checklist || []).map((x) => ({ ...x, done: false })) };
 }
+/* One confirmed change from the assistant (see describeAction in assistant.js). Task and meeting refs are already ids. */
+function applyAction(st, a) {
+  const now = Date.now();
+  const pri = (p) => (PRI[p] != null ? p : null);
+  const projId = (name) => { if (!name) return null; const n = String(name).toLowerCase(); const p = st.projects.find((x) => x.name.toLowerCase() === n) || st.projects.find((x) => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase())); return p ? p.id : null; };
+  if (a.op === 'add' && a.title) return { ...st, tasks: [...st.tasks, { id: uid(), status: 'todo', priority: pri(a.priority) || 'med', duration: Math.max(5, +a.minutes || 30), deps: [], locked: [], spent: 0, created: now, title: String(a.title).slice(0, 200), deadline: parseDue(a.due, st), projectId: projId(a.project) }] };
+  if (a.op === 'meeting' && a.title && parseDue(a.start, st)) { const s0 = parseDue(a.start, st); return { ...st, events: [...st.events, { id: uid(), kind: 'meeting', title: String(a.title).slice(0, 200), start: s0, end: s0 + Math.max(5, +a.minutes || 30) * MIN }] }; }
+  if (a.op === 'move_meeting' && a.meeting && parseDue(a.start, st)) return { ...st, events: st.events.map((e) => (e.id === a.meeting && !e.src ? { ...e, start: parseDue(a.start, st), end: parseDue(a.start, st) + (e.end - e.start) } : e)) };
+  if (!a.task || !st.tasks.some((t) => t.id === a.task)) return st;
+  if (a.op === 'done') return withStatus(st, a.task, 'done');
+  if (a.op === 'delete') return { ...st, tasks: st.tasks.filter((t) => t.id !== a.task).map((t) => ({ ...t, deps: (t.deps || []).filter((d) => d !== a.task) })) };
+  if (a.op !== 'update') return st;
+  const patch = {};
+  if (a.title) patch.title = String(a.title).slice(0, 200);
+  if ('due' in a) patch.deadline = parseDue(a.due, st);
+  if (a.start) patch.startDate = sod(parseDue(a.start, st) || now);
+  if (+a.minutes) patch.duration = Math.max(5, +a.minutes);
+  if (pri(a.priority)) patch.priority = a.priority;
+  const s2 = ['todo', 'doing', 'blocked'].includes(a.status) ? withStatus(st, a.task, a.status) : st;
+  return { ...s2, tasks: s2.tasks.map((t) => (t.id === a.task ? { ...t, ...patch } : t)) };
+}
+/* Focus timer: adds the running session to the task's tracked time. */
+function stopTimer(t, now) {
+  const mins = Math.max(0, (now - t.timer) / MIN);
+  return { ...t, timer: null, spent: Math.round(((t.spent || 0) + mins) * 10) / 10, sessions: [...(t.sessions || []), { s: t.timer, e: now }].slice(-60) };
+}
+const trackedMin = (t, now) => (t.spent || 0) + (t.timer ? (now - t.timer) / MIN : 0);
 /* Sets a task's status. Completing a repeating task adds the next one; un-completing removes it again if untouched. */
 function withStatus(s, id, status) {
   const t = s.tasks.find((x) => x.id === id);
   if (!t) return s;
   const now = Date.now(), was = t.status === 'done', is = status === 'done';
-  let tasks = s.tasks, upd = { ...t, status, completed: is ? (was ? t.completed : now) : null };
+  let tasks = s.tasks, upd = { ...(is && t.timer ? stopTimer(t, now) : t), status, completed: is ? (was ? t.completed : now) : null };
   if (is && !was && t.repeat) { const n = nextOccurrence(t, now); upd = { ...upd, repeat: null, repeatedTo: n.id }; tasks = [...tasks, n]; }
   if (!is && was && t.repeatedTo) {
     const n = tasks.find((x) => x.id === t.repeatedTo);
@@ -749,6 +802,49 @@ function App() {
   const [saveOk, setSaveOk] = useState(true);
 
   useEffect(() => { setSaveOk(saveState(state)); }, [state]);
+
+  /* ---- sync across devices, and calendar links, through the user's Space ---- */
+  const stateRef = useRef(state); stateRef.current = state;
+  const [, bump] = useState(0);
+  useEffect(() => { const f = () => bump((n) => n + 1); stewardSync.subs.add(f); return () => stewardSync.subs.delete(f); }, []);
+  const applySynced = useCallback((d) => {
+    if (!d || !d.planner) return;
+    setState((s) => ({ ...s, ...d.planner, plan: s.plan, events: [...(d.planner.events || []), ...s.events.filter((e) => e.src)], allday: s.allday }));
+    if (d.memory) kinMem.replace(d.memory, d.memoryGone);
+  }, []);
+  const doSync = useCallback((opts) => syncNow(() => stateRef.current, applySynced, opts), [applySynced]);
+  const [calStatus, setCalStatus] = useState({});
+  const refreshCalendars = useCallback(async () => {
+    const cals = (stateRef.current.settings.calendars || []).filter((c) => c.url);
+    if (!cals.length || !kinCloudAvailable()) return;
+    for (const cal of cals) {
+      try {
+        const r = await fetchCalendar(cal);
+        setState((s) => ({ ...s, events: [...s.events.filter((e) => e.src !== cal.id), ...r.timed], allday: [...(s.allday || []).filter((e) => e.src !== cal.id), ...r.allday] }));
+        setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), count: r.timed.length + r.allday.length, name: r.name } }));
+      } catch (e) { setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), error: e.message } })); }
+    }
+  }, []);
+  const calKey = (state.settings.calendars || []).map((c) => c.id + c.url).join('|');
+  useEffect(() => {
+    // drop events from calendars that were removed
+    const ids = new Set((state.settings.calendars || []).map((c) => c.id));
+    if (state.events.some((e) => e.src && !ids.has(e.src)) || (state.allday || []).some((e) => !ids.has(e.src))) setState((s) => ({ ...s, events: s.events.filter((e) => !e.src || ids.has(e.src)), allday: (s.allday || []).filter((e) => ids.has(e.src)) }));
+    refreshCalendars();
+  }, [calKey]);
+  useEffect(() => {
+    doSync();
+    const vis = () => { if (document.visibilityState === 'visible') { doSync(); refreshCalendars(); } else doSync({ pushOnly: true, keepalive: true }); };
+    const space = () => { stewardSync.saveMeta({ rev: 0, hash: '' }); doSync(); refreshCalendars(); };
+    document.addEventListener('visibilitychange', vis);
+    addEventListener('steward-space', space);
+    const tick = setInterval(() => { if (document.visibilityState === 'visible') doSync(); }, 90000);
+    const calTick = setInterval(refreshCalendars, 30 * 60000);
+    window.kinMemChanged = () => { clearTimeout(window.__memPush); window.__memPush = setTimeout(() => doSync({ pushOnly: true }), 4000); };
+    return () => { document.removeEventListener('visibilitychange', vis); removeEventListener('steward-space', space); clearInterval(tick); clearInterval(calTick); };
+  }, []);
+  const syncData = useMemo(() => syncPayload(state).planner, [state]);
+  useEffect(() => { const t = setTimeout(() => doSync({ pushOnly: true }), 4000); return () => clearTimeout(t); }, [syncData]);
   useEffect(() => { try { localStorage.setItem('kin.view', view); } catch (e) {} }, [view]);
 
   const commit = useCallback((fn, label) => {
@@ -756,13 +852,13 @@ function App() {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       if (next === prev) return prev;
       hist.current.push(prev); if (hist.current.length > 40) hist.current.shift();
-      return next;
+      return syncStamp(prev, next);
     });
     if (label) setToast({ text: label, undo: true, id: uid() });
   }, []);
   const undo = useCallback(() => {
     const prev = hist.current.pop();
-    if (prev) { setState(prev); setToast({ text: 'Undone', id: uid() }); }
+    if (prev) { setState((cur) => syncStamp(cur, { ...prev, events: [...prev.events.filter((e) => !e.src), ...cur.events.filter((e) => e.src)], allday: cur.allday })); setToast({ text: 'Undone', id: uid() }); }
   }, []);
   useEffect(() => { const k = (e) => { const tag = (e.target.tagName || '').toLowerCase(); if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !['input', 'textarea'].includes(tag)) { e.preventDefault(); undo(); } if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [undo]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.text.length > 90 ? 15000 : 5000); return () => clearTimeout(t); }, [toast]);
@@ -791,25 +887,29 @@ function App() {
     updTask: (id, patch, label) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) }), label),
     delTask: (id) => commit((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id).map((t) => ({ ...t, deps: (t.deps || []).filter((d) => d !== id) })) }), 'Task deleted'),
     toggleDone: (id) => commit((s) => { const t = s.tasks.find((x) => x.id === id); return t ? withStatus(s, id, t.status === 'done' ? 'todo' : 'done') : s; }, 'Marked complete'),
+    applyActions: (list) => commit((s) => list.reduce((st, a) => applyAction(st, a), s), 'Steward made ' + list.length + ' change' + (list.length === 1 ? '' : 's')),
     moveTask: (id, patch, label) => commit((s) => { const { status, ...rest } = patch; const s2 = status ? withStatus(s, id, status) : s; return { ...s2, tasks: s2.tasks.map((t) => (t.id === id ? { ...t, ...rest } : t)) }; }, label),
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
-    updEvent: (id, patch, label) => commit((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
+    updEvent: (id, patch, label) => commit((s) => (s.events.some((e) => e.id === id && e.src) ? s : { ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
     delEvent: (id) => commit((s) => ({ ...s, events: s.events.filter((e) => e.id !== id) }), 'Event deleted'),
     startNow: (taskId) => commit((s) => {
       const at = Math.floor(Date.now() / MIN) * MIN;
       return { ...s, tasks: s.tasks.map((t) => {
-        if (t.id !== taskId) return t;
+        if (t.id !== taskId) return t.timer ? stopTimer(t, Date.now()) : t;
         const len = Math.max(15, Math.min(remainingMin(t), 90));
-        return { ...t, status: 'doing', locked: [...(t.locked || []).filter((b) => b.end <= at), { id: uid(), start: at, end: at + len * MIN }] };
+        return { ...t, status: 'doing', timer: t.timer || Date.now(), locked: [...(t.locked || []).filter((b) => b.end <= at), { id: uid(), start: at, end: at + len * MIN }] };
       }) };
-    }, 'Started now. The rest of your day reflowed around it'),
+    }, 'Timer started. The rest of your day reflowed around it'),
+    startTimer: (taskId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, status: t.status === 'done' ? 'doing' : t.status === 'todo' ? 'doing' : t.status, completed: null, timer: t.timer || Date.now() } : t.timer ? stopTimer(t, Date.now()) : t)) }), 'Timer started'),
+    pauseTimer: (taskId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === taskId && t.timer ? stopTimer(t, Date.now()) : t)) }), 'Paused. Time saved to the task'),
+    finishTimer: (taskId) => commit((s) => withStatus({ ...s, tasks: s.tasks.map((t) => (t.id === taskId && t.timer ? stopTimer(t, Date.now()) : t)) }, taskId, 'done'), 'Done. Time saved to the task'),
     lockBlock: (taskId, start, end, replaceLockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: [...(t.locked || []).filter((b) => b.id !== replaceLockId), { id: uid(), start, end }] }) }), 'Block locked at ' + fmtT(start) + ' — the rest reflowed'),
     unlock: (taskId, lockId) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => t.id !== taskId ? t : { ...t, locked: (t.locked || []).filter((b) => b.id !== lockId) }) }), 'Unlocked — Steward will place it'),
     setSettings: (patch) => commit((s) => ({ ...s, settings: { ...s.settings, ...patch } })),
     addProject: (p) => { commit((s) => ({ ...s, projects: [...s.projects, p] })); },
     updProject: (id, patch) => commit((s) => ({ ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
     delProject: (id) => commit((s) => ({ ...s, projects: s.projects.filter((p) => p.id !== id), tasks: s.tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)) }), 'Project deleted (tasks kept)'),
-    saveNote: (n) => setState((s) => ({ ...s, notes: s.notes.some((x) => x.id === n.id) ? s.notes.map((x) => (x.id === n.id ? n : x)) : [n, ...s.notes] })),
+    saveNote: (n) => setState((s) => syncStamp(s, { ...s, notes: s.notes.some((x) => x.id === n.id) ? s.notes.map((x) => (x.id === n.id ? n : x)) : [n, ...s.notes] })),
     delNote: (id) => commit((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }), 'Note deleted'),
   }), [commit]);
 
@@ -848,7 +948,7 @@ function App() {
       <div class="spacer"></div>
       <button class=${'nav' + (view === 'settings' ? ' on' : '')} onClick=${() => setView('settings')}><${Icon} n="gear" /><span class="lbl">Settings</span><span class="mlbl">Settings</span></button>
     </nav>
-    <main class="main"><div class="wrap">
+    <main class="main"><${FocusBar} ...${ctx} /><div class="wrap">
       ${!saveOk ? html`<div class="banner warn"><b>Not saving.</b><span class="grow">This browser is blocking storage, so changes will be lost when you close the tab. Use Settings → Backup to copy your data out.</span></div>` : null}
       ${pendingMoves ? html`<div class="banner"><b>Proposed update</b><span class="grow">${pendingMoves} work block${pendingMoves > 1 ? 's' : ''} would move to keep the plan realistic.</span><button class="btn sm" onClick=${() => setView('calendar')}>Review</button><button class="btn sm pri" onClick=${applyPlan}>Apply plan</button></div>` : null}
       ${view === 'today' ? html`<${TodayView} ...${ctx} />` : null}
@@ -857,12 +957,191 @@ function App() {
       ${view === 'projects' ? html`<${ProjectsView} ...${ctx} />` : null}
       ${view === 'notes' ? html`<${NotesView} ...${ctx} />` : null}
       ${view === 'assistant' ? html`<${AssistantView} ...${ctx} />` : null}
-      ${view === 'settings' ? html`<${SettingsView} ...${ctx} setState=${setState} />` : null}
+      ${view === 'settings' ? html`<${SettingsView} ...${ctx} setState=${setState} doSync=${doSync} calStatus=${calStatus} refreshCalendars=${refreshCalendars} />` : null}
     </div></main>
     ${drawer && drawer.type === 'task' ? html`<${TaskDrawer} ...${ctx} id=${drawer.id} onClose=${() => setDrawer(null)} />` : null}
     ${drawer && drawer.type === 'event' ? html`<${EventModal} ...${ctx} ev=${drawer.ev} onClose=${() => setDrawer(null)} />` : null}
     ${search ? html`<${SearchModal} ...${ctx} initial=${typeof search === 'string' ? search : ''} onClose=${() => setSearch(false)} />` : null}
     ${toast ? html`<div class="toast" role="status"><span>${toast.text}</span>${toast.undo ? html`<button onClick=${() => { undo(); }}>Undo</button>` : null}</div>` : null}
+  </div>`;
+}
+
+/* ================= Daily plan, wrap-up and weekly review ================= */
+const dayKey = (t) => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+const weekStart = (t) => { const d = sod(t); return addDays(d, -((new Date(d).getDay() + 6) % 7)); };
+/* Streams one Steward answer into `text`. */
+function useAIStream() {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const run = async (system, user, opts = {}) => {
+    setBusy(true); setErr(''); setText('');
+    try {
+      await kinReady();
+      let acc = '';
+      const out = await kinAI.ask({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], baseSystem: system, maxTokens: opts.maxTokens || 600, temperature: 0.5, docs: opts.docs !== false, onChunk: (c) => { acc += c; setText(acc); } });
+      setText(out || acc);
+      return out || acc;
+    } catch (e) { setErr(e.message || String(e)); return ''; }
+    finally { setBusy(false); }
+  };
+  return { text, busy, err, run, setText };
+}
+/* Light formatting for AI text: paragraphs, bullet lines and **bold**. */
+function AIBody({ text }) {
+  const bold = (l) => l.split(/\*\*(.+?)\*\*/g).map((p, i) => (i % 2 ? html`<b key=${i}>${p}</b>` : p));
+  return html`<div class="aibody">${String(text).split('\n').filter((l, i, a) => l.trim() || (a[i - 1] || '').trim()).map((l, i) => {
+    const m = l.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+    const h = l.match(/^\s*#{1,4}\s+(.*)$/);
+    return h ? html`<h4 key=${i}>${bold(h[1])}</h4>` : m ? html`<div key=${i} class="li">${bold(m[1])}</div>` : l.trim() ? html`<p key=${i}>${bold(l)}</p>` : null;
+  })}</div>`;
+}
+const aiReady = () => typeof kinAIAvailable === 'function' && kinAIAvailable();
+
+function dayStats(state, plan, now, day) {
+  const next = addDays(day, 1);
+  const blocks = plan.blocks.filter((b) => b.start >= day && b.start < next);
+  const ids = [...new Set(blocks.map((b) => b.taskId))];
+  const byId = Object.fromEntries(state.tasks.map((t) => [t.id, t]));
+  const meetings = state.events.filter((e) => e.start >= day && e.start < next).sort((a, b) => a.start - b.start);
+  const h = state.settings.hours[new Date(day).getDay()];
+  const cap = h ? h[1] - h[0] - state.settings.breaks.reduce((a, b) => a + (b.e - b.s), 0) : 0;
+  const focus = blocks.reduce((a, b) => a + (b.end - b.start) / MIN, 0);
+  const meet = meetings.reduce((a, e) => a + (e.end - e.start) / MIN, 0);
+  const done = state.tasks.filter((t) => t.status === 'done' && t.completed >= day && t.completed < next);
+  const tracked = state.tasks.reduce((a, t) => a + (t.sessions || []).filter((x) => x.s >= day && x.s < next).reduce((m, x) => m + (x.e - x.s) / MIN, 0) + (t.timer && t.timer >= day ? (now - t.timer) / MIN : 0), 0);
+  return { tasks: ids.map((id) => byId[id]).filter(Boolean), meetings, cap, focus, meet, done, tracked, blocks };
+}
+
+function DayRitual(ctx) {
+  const { state, plan, now, A, commit, setDrawer } = ctx;
+  const d0 = sod(now), key = dayKey(now), hour = new Date(now).getHours();
+  const rit = state.rituals || {};
+  const h = state.settings.hours[new Date(now).getDay()];
+  const endH = h ? h[1] / 60 : 17;
+  const [open, setOpen] = useState(null); // 'plan' | 'wrap' | 'week'
+  const [note, setNote] = useState('');
+  const ai = useAIStream();
+  const mark = (k) => commit((s) => ({ ...s, rituals: { ...(s.rituals || {}), [k]: key } }));
+  const st = dayStats(state, plan, now, d0);
+  const ws = weekStart(now);
+  const weekDue = (new Date(now).getDay() === 5 && hour >= 12) || [0, 6].includes(new Date(now).getDay()) || (new Date(now).getDay() === 1 && hour < 12);
+  const reviewedWeek = rit.week && rit.week >= (new Date(now).getDay() === 1 ? addDays(ws, -7) : ws);
+  const mode = open || (weekDue && !reviewedWeek ? 'weekhint' : null) || (hour >= Math.max(15, endH - 1.5) && rit.wrap !== key && h ? 'wraphint' : null) || (hour < 13 && rit.plan !== key && h ? 'planhint' : null);
+  if (!mode) return html`<div class="rit-links"><button class="btn sm ghost" onClick=${() => setOpen('plan')}>Plan my day</button><button class="btn sm ghost" onClick=${() => setOpen('wrap')}>Wrap up</button><button class="btn sm ghost" onClick=${() => setOpen('week')}>Weekly review</button></div>`;
+  if (mode === 'week' || mode === 'weekhint') return mode === 'week' ? html`<${WeeklyReview} ...${ctx} onClose=${() => setOpen(null)} onSaved=${() => { commit((s) => ({ ...s, rituals: { ...(s.rituals || {}), week: weekStart(Date.now()) } })); setOpen(null); }} />`
+    : html`<div class="rit"><div class="rit-h"><span class="eyebrow">Weekly review</span><b>Look back at your week and set up the next one.</b></div><div class="acts"><button class="btn sm pri" onClick=${() => setOpen('week')}>Start review</button><button class="btn sm ghost" onClick=${() => commit((s) => ({ ...s, rituals: { ...(s.rituals || {}), week: weekStart(Date.now()) } }))}>Skip this week</button></div></div>`;
+
+  if (mode === 'planhint' || mode === 'plan') {
+    const over = st.cap && st.focus + st.meet > st.cap;
+    const top = st.tasks.slice().sort((a, b) => PRI[a.priority] - PRI[b.priority] || (a.deadline || 9e15) - (b.deadline || 9e15)).slice(0, 3);
+    const ask = () => ai.run(kinSystem(state, plan, 'plan my day'), 'It is ' + fmtT(now) + '. Help me plan today. In a few short paragraphs or bullets: what matters most today and why, what to protect time for, what could slip if the day gets away from me, and one question if you need to know something. Keep it under 150 words. Do not list suggested tasks.', { maxTokens: 400 });
+    return html`<div class="rit">
+      <div class="rit-h"><span class="eyebrow">Plan your day</span><b>${st.meetings.length} meeting${st.meetings.length === 1 ? '' : 's'} · ${fmtDur(Math.round(st.focus))} of focus work${st.cap ? ' · ' + Math.round((st.focus + st.meet) / st.cap * 100) + '% of your hours' : ''}</b>${over ? html`<span class="bad small">Today is over-full. Something will need to move.</span>` : null}</div>
+      ${top.length ? html`<div class="rit-list">${top.map((t, i) => html`<button key=${t.id} class="rit-t" onClick=${() => setDrawer({ type: 'task', id: t.id })}><span class="mono muted">${i + 1}</span><span>${t.title}</span><span class="muted mono">${fmtDur(remainingMin(t))}${t.deadline ? ' · due ' + relD(t.deadline, now).toLowerCase() : ''}</span></button>`)}</div>` : html`<div class="muted small">Nothing scheduled for today yet.</div>`}
+      ${ai.text || ai.busy ? html`<div class="rit-ai">${ai.text ? html`<${AIBody} text=${ai.text} />` : html`<span class="muted">Thinking…</span>`}</div>` : null}
+      ${ai.err ? html`<div class="bad small">${ai.err}</div>` : null}
+      <div class="acts">
+        <button class="btn sm pri" onClick=${() => { mark('plan'); setOpen(null); }}>Looks good</button>
+        ${aiReady() ? html`<button class="btn sm" disabled=${ai.busy} onClick=${ask}><${Icon} n="spark" />${ai.text ? 'Ask again' : 'Talk it through with Steward'}</button>` : null}
+        ${over && st.tasks.length ? html`<button class="btn sm ghost" onClick=${() => { const low = st.tasks.slice().sort((a, b) => PRI[b.priority] - PRI[a.priority])[0]; A.updTask(low.id, { startDate: addDays(d0, 1) }, 'Moved “' + low.title + '” to tomorrow'); }}>Move the lowest priority to tomorrow</button>` : null}
+      </div>
+    </div>`;
+  }
+
+  // wrap-up
+  const left = st.tasks.filter((t) => t.status !== 'done');
+  const finish = async () => {
+    const text = note.trim();
+    if (text) {
+      const line = '**' + fmtD(now) + '**: ' + text;
+      const log = state.notes.find((n) => n.log === 'daily');
+      A.saveNote(log ? { ...log, body: line + '\n\n' + log.body, updated: Date.now() } : { id: uid(), log: 'daily', title: 'Daily log', body: line, updated: Date.now() });
+      if (aiReady()) kinLearnFrom('Reflection on my day: ' + text, '').catch(() => {});
+    }
+    mark('wrap'); setOpen(null); setNote('');
+  };
+  return html`<div class="rit">
+    <div class="rit-h"><span class="eyebrow">Wrap up your day</span><b>${st.done.length} done today${st.tracked >= 1 ? ' · ' + fmtDur(Math.round(st.tracked)) + ' tracked' : ''}${left.length ? ' · ' + left.length + ' still open' : ''}</b></div>
+    ${left.length ? html`<div class="rit-list">${left.map((t) => html`<div key=${t.id} class="rit-t">
+      <button class="tt" onClick=${() => setDrawer({ type: 'task', id: t.id })}>${t.title}</button>
+      <span class="rit-acts"><button class="btn sm" onClick=${() => A.toggleDone(t.id)}><${Icon} n="check" />Done</button><button class="btn sm ghost" onClick=${() => A.updTask(t.id, { startDate: addDays(d0, 1) }, 'Moved to tomorrow')}>Tomorrow</button><button class="btn sm ghost" onClick=${() => A.updTask(t.id, (x) => ({ duration: (x.duration || 30) + 30 }), 'Added 30m')}>+30m</button></span>
+    </div>`)}</div>` : html`<div class="muted small">Everything planned for today is done. Nice work.</div>`}
+    <textarea class="in" rows="2" value=${note} onInput=${(e) => setNote(e.target.value)} placeholder="How did today go? What got in the way? (optional, saved to your Daily log and helps Steward learn)" aria-label="How did today go"></textarea>
+    <div class="acts"><button class="btn sm pri" onClick=${finish}>Finish the day</button>${open ? html`<button class="btn sm ghost" onClick=${() => setOpen(null)}>Close</button>` : html`<button class="btn sm ghost" onClick=${() => mark('wrap')}>Not now</button>`}</div>
+  </div>`;
+}
+
+function WeeklyReview({ state, plan, now, A, onClose, onSaved, setDrawer }) {
+  const ai = useAIStream();
+  const w1 = weekStart(now), last = [0, 6].includes(new Date(now).getDay()) || new Date(now).getDay() === 5 ? w1 : addDays(w1, -7);
+  const from = last, to = addDays(last, 7);
+  const done = state.tasks.filter((t) => t.status === 'done' && t.completed >= from && t.completed < to);
+  const tracked = state.tasks.reduce((a, t) => a + (t.sessions || []).filter((x) => x.s >= from && x.s < to).reduce((m, x) => m + (x.e - x.s) / MIN, 0), 0);
+  const est = done.reduce((a, t) => a + (t.duration || 30), 0);
+  const slipped = state.tasks.filter((t) => t.deadline && t.deadline >= from && t.deadline < Math.min(to, now) && (t.status !== 'done' || t.completed > t.deadline));
+  const byProj = state.projects.filter((p) => p.status !== 'done').map((p) => {
+    const ts = state.tasks.filter((t) => t.projectId === p.id);
+    const end = Math.max(0, ...ts.filter((t) => t.status !== 'done').map((t) => (plan.info[t.id] || {}).end || 0));
+    return { p, doneWeek: done.filter((t) => t.projectId === p.id).length, open: ts.filter((t) => t.status !== 'done').length, risk: !!(p.deadline && end > p.deadline) };
+  });
+  const nx = Math.max(to, sod(now)), nxEnd = addDays(nx, 7);
+  const nextMeet = state.events.filter((e) => e.start >= nx && e.start < nxEnd);
+  const nextFocus = plan.blocks.filter((b) => b.start >= nx && b.start < nxEnd).reduce((a, b) => a + (b.end - b.start) / MIN, 0);
+  const cap = [...Array(7)].reduce((a, _, i) => { const h = state.settings.hours[new Date(addDays(nx, i)).getDay()]; return a + (h ? h[1] - h[0] - state.settings.breaks.reduce((x, b) => x + (b.e - b.s), 0) : 0); }, 0);
+  const nextMeetMin = nextMeet.reduce((a, e) => a + (e.end - e.start) / MIN, 0);
+  const range = fmtD(from).slice(4) + ' – ' + fmtD(addDays(to, -1)).slice(4);
+  const facts = [
+    'Week of ' + range + '.',
+    'Finished ' + done.length + ' task' + (done.length === 1 ? '' : 's') + (done.length ? ': ' + done.slice(0, 20).map((t) => t.title).join('; ') : '') + '.',
+    tracked >= 1 ? 'Tracked ' + fmtDur(Math.round(tracked)) + ' with the timer; finished tasks were estimated at ' + fmtDur(est) + '.' : '',
+    slipped.length ? 'Deadlines that slipped: ' + slipped.map((t) => t.title + (t.status === 'done' ? ' (finished late)' : ' (still open)')).join('; ') + '.' : 'No deadlines slipped.',
+    byProj.length ? 'Projects: ' + byProj.map((x) => x.p.name + ' — ' + x.doneWeek + ' done this week, ' + x.open + ' open' + (x.risk ? ', at risk of missing its deadline' : '')).join('; ') + '.' : '',
+    'Next 7 days: ' + nextMeet.length + ' meetings (' + fmtDur(Math.round(nextMeetMin)) + '), ' + fmtDur(Math.round(nextFocus)) + ' of scheduled work, out of ' + fmtDur(cap) + ' working time.',
+  ].filter(Boolean).join('\n');
+  const write = () => ai.run(kinSystem(state, plan, 'weekly review of my work'), 'Write my weekly review from these facts:\n' + facts + '\n\nUse short sections with headings: "Wins", "What slipped and why it might have", "Next week", and end with one or two reflection questions for me. Connect it to what you know about my role and goals, and cite my documents if relevant. Keep it under 250 words.', { maxTokens: 700 });
+  const save = () => {
+    const body = '## This week\n' + facts.split('\n').map((l) => '- ' + l).join('\n') + (ai.text ? '\n\n## Steward’s review\n' + ai.text : '');
+    A.saveNote({ id: uid(), title: 'Weekly review · ' + range, body, updated: Date.now(), log: 'weekly' });
+    if (ai.text && aiReady()) kinLearnFrom('My weekly review: ' + facts, '').catch(() => {});
+    onSaved();
+  };
+  const stat = (n, l, cls) => html`<div class=${cls || ''}><b>${n}</b><span>${l}</span></div>`;
+  return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <div class="modal wr" role="dialog" aria-label="Weekly review">
+      <div style=${{ display: 'flex', alignItems: 'center' }}><div><div class="eyebrow">Weekly review</div><h2 style=${{ margin: '2px 0 0' }}>${range}</h2></div><span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button></div>
+      <div class="stats wr-stats">${stat(done.length, 'finished')}${stat(tracked >= 1 ? fmtDur(Math.round(tracked)) : '—', 'tracked')}${stat(slipped.length, 'slipped', slipped.length ? 'bad' : '')}${stat(cap ? Math.round((nextFocus + nextMeetMin) / cap * 100) + '%' : '—', 'next week booked', cap && nextFocus + nextMeetMin > cap ? 'bad' : '')}</div>
+      ${slipped.length ? html`<div><div class="grp">Slipped</div><div class="panel rows">${slipped.map((t) => html`<${TaskRow} key=${t.id} t=${t} state=${state} plan=${plan} now=${now} A=${A} setDrawer=${setDrawer} />`)}</div></div>` : null}
+      ${byProj.length ? html`<div><div class="grp">Projects</div><div class="panel rows">${byProj.map((x) => html`<div key=${x.p.id} class="row"><span class="pdot" style=${{ background: pColor(x.p.color), marginRight: 0 }}></span><div class="t"><b>${x.p.name}</b><small>${x.doneWeek} done this week · ${x.open} open</small></div>${x.risk ? html`<span class="pill bad">At risk</span>` : html`<span class="pill ok">On track</span>`}</div>`)}</div></div>` : null}
+      ${ai.text || ai.busy ? html`<div class="rit-ai">${ai.text ? html`<${AIBody} text=${ai.text} />` : html`<span class="muted">Steward is writing your review…</span>`}</div>` : null}
+      ${ai.err ? html`<div class="bad small">${ai.err}</div>` : null}
+      <div class="acts" style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        ${aiReady() ? html`<button class="btn sm" disabled=${ai.busy} onClick=${write}><${Icon} n="spark" />${ai.text ? 'Rewrite' : 'Write my review'}</button>` : null}
+        <span style=${{ flex: 1 }}></span>
+        <button class="btn sm pri" disabled=${ai.busy} onClick=${save}>Save to Notes</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ================= Focus timer ================= */
+function FocusBar({ state, A, setDrawer }) {
+  const t = state.tasks.find((x) => x.timer);
+  const [, tick] = useState(0);
+  useEffect(() => { if (!t) return; const i = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(i); }, [t && t.id]);
+  useEffect(() => { document.title = t ? '● ' + t.title + ' · Steward' : 'Steward'; }, [t && t.id]);
+  if (!t) return null;
+  const now = Date.now();
+  const sec = Math.floor((now - t.timer) / 1000);
+  const clock = (Math.floor(sec / 3600) ? Math.floor(sec / 3600) + ':' : '') + String(Math.floor(sec / 60) % 60).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  const tot = trackedMin(t, now), est = t.duration || 30;
+  return html`<div class="focus" role="timer" aria-label="Focus timer">
+    <span class="fdot"></span>
+    <button class="ftitle" onClick=${() => setDrawer({ type: 'task', id: t.id })}><b>${t.title}</b><small>${fmtDur(Math.round(tot))} of ${fmtDur(est)}${tot > est ? ' · over estimate' : ''}</small></button>
+    <span class="fclock mono">${clock}</span>
+    <button class="btn sm" onClick=${() => A.pauseTimer(t.id)}>Pause</button>
+    <button class="btn sm pri" onClick=${() => A.finishTimer(t.id)}><${Icon} n="check" />Done</button>
+    <i class="fbar" style=${{ width: Math.min(100, tot / est * 100) + '%' }}></i>
   </div>`;
 }
 
@@ -942,7 +1221,7 @@ function Hours({ range, ppm }) {
   return html`<div class="hours" style=${{ height: (range[1] - range[0]) * ppm + 'px' }}>${out}</div>`;
 }
 
-function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty }) {
+function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty, setToast }) {
   const H = (range[1] - range[0]) * ppm;
   const [drag, setDrag] = useState(null);
   const y = (t) => (minOfDay(t) - range[0]) * ppm;
@@ -971,6 +1250,7 @@ function DayCol({ day, range, ppm, state, plan, now, A, setDrawer, onEmpty }) {
     if (!d.moved) { if (d.kind === 'ev') setDrawer({ type: 'event', ev: state.events.find((x) => x.id === d.id) }); else setDrawer({ type: 'task', id: d.taskId }); return; }
     const dm = Math.round(d.dy / ppm);
     const ns = atMin(d.targetDay, minOfDay(d.start) + dm), ne = ns + (d.end - d.start);
+    if (d.kind === 'ev' && (state.events.find((x) => x.id === d.id) || {}).src) { setToast && setToast({ text: 'That meeting comes from your calendar. Move it there.', id: uid() }); return; }
     if (d.kind === 'ev') A.updEvent(d.id, { start: ns, end: ne }, 'Moved “' + d.title + '” to ' + fmtT(ns));
     else A.lockBlock(d.taskId, ns, ne, d.lockId);
   };
@@ -1027,6 +1307,7 @@ function TodayView(ctx) {
     nowCard = html`<div class="now"><div class="eyebrow">Do this now · until ${fmtT(curBlk.end)}</div><h3>${t.title}</h3>
       <div class="meta"><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>${t.deadline ? html`<span>Due ${relD(t.deadline, now)} ${fmtT(t.deadline)}</span>` : null}<span>${fmtDur(remainingMin(t))} left</span></div>
       <div class="acts"><button class="btn pri sm" onClick=${() => A.toggleDone(t.id)}><${Icon} n="check" />Done</button>
+      ${!t.timer ? html`<button class="btn sm" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start timer</button>` : null}
       <button class="btn sm" onClick=${() => A.updTask(t.id, (x) => ({ duration: (x.duration || 30) + 30 }), 'Added 30m — schedule reflowed')}>Needs 30m more</button>
       <button class="btn sm ghost" onClick=${() => A.updTask(t.id, (x) => ({ startDate: addDays(sod(now), 1) }), 'Pushed to tomorrow')}>Not today</button>
       <button class="btn sm ghost" onClick=${() => setDrawer({ type: 'task', id: t.id })}>Details</button></div>
@@ -1038,8 +1319,9 @@ function TodayView(ctx) {
   }
 
   return html`<div>
-    <header class="hdr"><div><div class="sub">${fmtD(now)} · ${fmtDur(Math.round(plannedMin))} of focus planned · ${doneToday} done</div><h1>${greeting}, JP.</h1></div></header>
+    <header class="hdr"><div><div class="sub">${fmtD(now)} · ${fmtDur(Math.round(plannedMin))} of focus planned · ${doneToday} done</div><h1>${greeting}, JP.</h1>${(state.allday || []).some((a) => a.day === d0) ? html`<div class="adrow">${state.allday.filter((a) => a.day === d0).map((a) => html`<span key=${a.id} class="ad">${a.title}</span>`)}</div>` : null}</div></header>
     <${CommandBar} ...${ctx} />
+    <${DayRitual} ...${ctx} />
     ${state.hasSample ? html`<p class="muted" style=${{ fontSize: '12.5px', margin: '10px 2px 0' }}>Showing example tasks and meetings so you can see how it works. Clear them any time in Settings.</p>` : null}
     <div class="today">
       <section class="panel" aria-label="Today's timeline">
@@ -1110,7 +1392,7 @@ function CalendarView(ctx) {
     <p class="muted" style=${{ margin: '-6px 0 14px', fontSize: '13px' }}>Drag a work block to lock it at a new time; everything flexible reflows around it. Drag meetings to reschedule them. Double-click empty space to add a meeting.</p>
     <div class="weekwrap"><div class="week">
       <div class="wkhead"></div>
-      ${days.map((d) => { const l = load(d); return html`<div key=${d} class=${'wkhead' + (d === sod(now) ? ' tdy' : '')}><small>${WD[new Date(d).getDay()]}</small><b>${new Date(d).getDate()}</b>${l != null ? html`<div class="load" style=${l > 100 ? { color: 'var(--bad)' } : null}>${l}% booked</div>` : html`<div class="load">Off</div>`}</div>`; })}
+      ${days.map((d) => { const l = load(d); return html`<div key=${d} class=${'wkhead' + (d === sod(now) ? ' tdy' : '')}><small>${WD[new Date(d).getDay()]}</small><b>${new Date(d).getDate()}</b>${(state.allday || []).filter((a) => a.day === d).map((a) => html`<div key=${a.id} class="ad" title=${a.title}>${a.title}</div>`)}${l != null ? html`<div class="load" style=${l > 100 ? { color: 'var(--bad)' } : null}>${l}% booked</div>` : html`<div class="load">Off</div>`}</div>`; })}
       <${Hours} range=${range} ppm=${ppm} />
       ${days.map((d) => html`<${DayCol} key=${d} day=${d} range=${range} ppm=${ppm} ...${ctx} onEmpty=${(t) => setDrawer({ type: 'event', ev: { start: t, end: t + 30 * MIN, title: '' } })} />`)}
     </div></div>
@@ -1201,6 +1483,10 @@ function TaskDrawer(ctx) {
         inf.unscheduled ? html`<b>Not placed.</b> ${inf.reason || fmtDur(Math.round(inf.short || 0)) + ' doesn’t fit in your working hours over the next ' + state.settings.horizon + ' days.'}` :
         inf.first ? html`<b>Working on it ${relD(inf.first, now)} at ${fmtT(inf.first)}</b>${blocks.length > 1 ? ' across ' + blocks.length + ' blocks' : ''}, finishing ${relD(inf.end, now)} ${fmtT(inf.end)}. ${t.deadline ? (inf.late ? html`<span style=${{ color: 'var(--bad)' }}>That’s after the deadline.</span>` : 'That’s before the ' + relD(t.deadline, now) + ' deadline.') : ''} Chosen as the earliest open time ${inf.why && inf.why.length ? inf.why.join(' and ') : ''} given its ${t.deadline ? 'deadline' : 'priority'}.` : 'Scheduling…'}
     </div>
+    ${t.status !== 'done' || t.spent ? html`<div class="tmr">
+      ${t.status !== 'done' ? (t.timer ? html`<button class="btn sm" onClick=${() => A.pauseTimer(t.id)}>Pause timer</button>` : html`<button class="btn sm" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start timer</button>`) : null}
+      <span class="muted small">${trackedMin(t, now) >= 1 ? 'Tracked ' + fmtDur(Math.round(trackedMin(t, now))) + ' of ' + fmtDur(t.duration || 30) + ' estimated' + ((t.sessions || []).length ? ' · ' + t.sessions.length + ' session' + (t.sessions.length === 1 ? '' : 's') : '') : 'Track the time you spend so Steward learns how long things really take.'}</span>
+    </div>` : null}
     <div class="grid3">
       <div class="fld"><label for="t-dur">Estimate</label><select id="t-dur" class="in" value=${t.duration} onChange=${(e) => up({ duration: +e.target.value })}>${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].concat([t.duration]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}</select></div>
       <div class="fld"><label for="t-pri">Priority</label><select id="t-pri" class="in" value=${t.priority} onChange=${(e) => up({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select></div>
@@ -1235,6 +1521,13 @@ function TaskDrawer(ctx) {
 function EventModal({ ev, A, onClose, now }) {
   const isNew = !ev.id;
   const [f, setF] = useState({ title: ev.title || '', start: ev.start, end: ev.end, kind: ev.kind || 'meeting' });
+  if (ev.src) return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}><div class="modal" style=${{ maxWidth: '440px' }} role="dialog" aria-label="Meeting">
+    <div class="muted mono" style=${{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em' }}>From your calendar · Steward plans around it</div>
+    <h2 style=${{ margin: '6px 0' }}>${ev.title}</h2>
+    <div class="muted">${relD(ev.start, now)} · ${fmtT(ev.start)}–${fmtT(ev.end)}${ev.location ? ' · ' + ev.location : ''}</div>
+    <p class="muted small">To change it, edit it in your calendar app. Steward picks up changes within 30 minutes.</p>
+    <div style=${{ display: 'flex' }}><span style=${{ flex: 1 }}></span><button class="btn" onClick=${onClose}>Close</button></div>
+  </div></div>`;
   const dur = Math.round((f.end - f.start) / MIN);
   const save = (e) => { e.preventDefault(); const t = f.title.trim() || 'Meeting'; if (isNew) A.addEvent({ ...f, title: t }); else A.updEvent(ev.id, { ...f, title: t }, 'Saved'); onClose(); };
   return html`<div class="scrim" style=${{ justifyContent: 'center' }} onClick=${(e) => e.target === e.currentTarget && onClose()}><form class="modal" onSubmit=${save} style=${{ maxWidth: '440px' }}>
@@ -1344,6 +1637,7 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn 
         ${due ? html`<span class=${info(t).late || due < now ? 'bad' : ''}>due ${relD(due, now)}</span>` : null}
         ${cl.length ? html`<span class=${cd === cl.length ? 'okc' : ''}><${Icon} n="tasks" />${cd}/${cl.length}</span>` : null}
         ${t.repeat ? html`<span title=${'Repeats ' + REPEAT[t.repeat]}><${Icon} n="repeat" /></span>` : null}
+        ${t.timer ? html`<span class="bad">● timing</span>` : t.spent >= 1 ? html`<span>${fmtDur(Math.round(t.spent))} tracked</span>` : null}
       </span>
       ${(by !== 'priority' && (t.priority === 'asap' || t.priority === 'high')) || (by !== 'status' && (t.status === 'blocked' || t.status === 'doing')) || t.hard || (t.labels || []).length ? html`<span class="bcard-tags">
         ${by !== 'priority' && (t.priority === 'asap' || t.priority === 'high') ? html`<span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>` : null}
@@ -1748,7 +2042,41 @@ function SearchModal({ state, now, initial, onClose, setDrawer, setView }) {
 }
 
 /* ================= Settings ================= */
-function SettingsView({ state, A, setState, commit, setToast }) {
+function SyncPanel({ doSync, setView }) {
+  const sp = kinSpace();
+  const m = stewardSync.meta, on = stewardSync.on();
+  const toggle = (v) => { kinSave(KIN_SPACE_KEY, { ...sp, sync: v }); stewardSync.set({}); if (v) doSync(); };
+  const line = !sp || !sp.url ? 'Connect your Space (Assistant → Your Space) to keep this planner in sync on your phone and computer.'
+    : !on ? 'Sync is off on this device.'
+    : stewardSync.status === 'syncing' ? 'Syncing…'
+    : stewardSync.status === 'error' ? stewardSync.error
+    : m.last ? 'Synced ' + relD(m.last, Date.now()).toLowerCase() + ' at ' + fmtT(m.last) + '.' : 'Waiting for the first sync…';
+  return html`<div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Sync across devices</h2><span class="grow"></span>
+    ${sp && sp.url ? html`<label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${on} onChange=${(e) => toggle(e.target.checked)} />On</label>` : html`<button class="btn sm" onClick=${() => setView('assistant')}>Connect</button>`}</div>
+    <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
+      <div style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}><span class=${'dot ' + (stewardSync.status === 'error' ? 'bad' : on ? 'ok' : '')}></span><span style=${stewardSync.status === 'error' ? { color: 'var(--bad)' } : null}>${line}</span><span class="grow"></span>${on ? html`<button class="btn sm" disabled=${stewardSync.status === 'syncing'} onClick=${() => doSync()}>Sync now</button>` : null}</div>
+      ${sp && sp.url ? html`<p class="muted" style=${{ margin: 0 }}>Your tasks, projects, notes, settings and what Steward has learned are saved by your Space to a private Hugging Face dataset (<b>steward-data</b>). Connect the same Space on each device. ${stewardSync.status === 'error' && /save|open|403|401|permission|write/i.test(stewardSync.error) ? 'For saving, your Space’s HF_TOKEN needs write access. Edit the token on Hugging Face to allow write access to your repos, or add a second secret named HF_WRITE_TOKEN with a write token, then restart the Space.' : ''}</p>` : null}
+    </div></div>`;
+}
+
+function CalendarsPanel({ state, A, calStatus, refreshCalendars, setToast }) {
+  const cals = state.settings.calendars || [];
+  const [url, setUrl] = useState('');
+  const connected = kinCloudAvailable();
+  const add = (e) => { e.preventDefault(); const u = url.trim(); if (!u) return; A.setSettings({ calendars: [...cals, { id: 'cal' + uid().slice(0, 6), url: u }] }); setUrl(''); setToast({ text: 'Calendar added. Reading it now…', id: uid() }); };
+  return html`<div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Calendars</h2><span class="grow"></span>${cals.length ? html`<button class="btn sm" onClick=${refreshCalendars}>Refresh</button>` : null}</div>
+    <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
+      ${cals.map((c) => { const st = calStatus[c.id] || {}; return html`<div key=${c.id} style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <span class=${'dot ' + (st.error ? 'bad' : st.at ? 'ok' : '')}></span>
+        <div style=${{ flex: 1, minWidth: 0 }}><b>${st.name || c.name || 'Calendar'}</b><div class="muted" style=${{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>${st.error ? html`<span style=${{ color: 'var(--bad)' }}>${st.error}</span>` : st.at ? st.count + ' events in the next 4 weeks · updated ' + fmtT(st.at) : connected ? 'Reading…' : 'Connect your Space to read this calendar.'}</div></div>
+        <button class="btn sm ghost danger" onClick=${() => A.setSettings({ calendars: cals.filter((x) => x.id !== c.id) })}>Remove</button>
+      </div>`; })}
+      <form onSubmit=${add} style=${{ display: 'flex', gap: '8px' }}><input class="in" style=${{ flex: 1 }} value=${url} onInput=${(e) => setUrl(e.target.value)} placeholder="Paste a calendar’s secret address (.ics)" aria-label="Calendar link" /><button class="btn sm pri" disabled=${!url.trim()}>Add</button></form>
+      <p class="muted" style=${{ margin: 0 }}>Steward schedules around these meetings. They refresh every 30 minutes and are read only here. <b>Google:</b> Calendar settings → your calendar → <i>Secret address in iCal format</i>. <b>Outlook:</b> Settings → Calendar → Shared calendars → <i>Publish a calendar</i> → ICS link. <b>iCloud:</b> share the calendar publicly and copy the link.</p>
+    </div></div>`;
+}
+
+function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus, refreshCalendars, setView }) {
   const s = state.settings;
   const [imp, setImp] = useState('');
   const [confirm, setConfirm] = useState(false);
@@ -1757,7 +2085,10 @@ function SettingsView({ state, A, setState, commit, setToast }) {
   const setDay = (d, v) => A.setSettings({ hours: { ...s.hours, [d]: v } });
   const exportData = () => { const txt = JSON.stringify(state); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => setToast({ text: 'Backup copied — paste it into a note or file', id: uid() }), () => { setImp(txt); setToast({ text: 'Copy the backup from the box below', id: uid() }); }); };
   return html`<div style=${{ maxWidth: '720px' }}>
-    <header class="hdr"><div><div class="sub">Everything stays on this device</div><h1>Settings</h1></div></header>
+    <header class="hdr"><div><div class="sub">${stewardSync.on() ? 'Synced through your Space' : 'Everything stays on this device'}</div><h1>Settings</h1></div></header>
+    <${SyncPanel} doSync=${doSync} setView=${setView} />
+    <${CalendarsPanel} state=${state} A=${A} calStatus=${calStatus} refreshCalendars=${refreshCalendars} setToast=${setToast} />
+    <div style=${{ height: '16px' }}></div>
     <div class="panel"><div class="ph"><h2>Working hours</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       ${[1, 2, 3, 4, 5, 6, 0].map((d) => { const h = s.hours[d]; return html`<div key=${d} class="hrs"><label style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" id=${'wd' + d} checked=${!!h} onChange=${(e) => setDay(d, e.target.checked ? [540, 1020] : null)} />${WD[d]}</label>
         ${h ? html`<input class="in" type="time" value=${toT(h[0])} onChange=${(e) => setDay(d, [fromT(e.target.value), h[1]])} aria-label=${WD[d] + ' start'} /><span class="muted">to</span><input class="in" type="time" value=${toT(h[1])} onChange=${(e) => setDay(d, [h[0], fromT(e.target.value)])} aria-label=${WD[d] + ' end'} />` : html`<span class="muted" style=${{ gridColumn: 'span 3' }}>Off</span>`}</div>`; })}
@@ -1776,13 +2107,13 @@ function SettingsView({ state, A, setState, commit, setToast }) {
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>About the assistant</h2></div><div style=${{ padding: '14px 16px', fontSize: '13.5px', color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <p style=${{ margin: 0 }}>Everything runs on this device with no account and no API key. Quick capture, project drafts and pulling actions out of notes use Steward’s built-in language rules, so they're fast and predictable. The calendar engine is real scheduling code, not AI.</p>
-      <p style=${{ margin: 0 }}>Not connected: Google/Outlook calendar sync, booking links, meeting recording. The planner works without them.</p>
+      <p style=${{ margin: 0 }}>Calendars come in through your Space as read-only links. Not included: booking links and meeting recording.</p>
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Your data</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button class="btn sm" onClick=${exportData}>Copy backup</button>
         ${state.hasSample ? html`<button class="btn sm" onClick=${() => commit((st) => ({ ...st, hasSample: false, tasks: st.tasks.filter((t) => !t.sample), projects: st.projects.filter((p) => !p.sample), events: st.events.filter((e) => !e.sample), notes: st.notes.filter((n) => !n.sample) }), 'Example data cleared')}>Clear example data</button>` : null}
-        ${confirm ? html`<button class="btn sm danger" onClick=${() => { setState({ v: 1, onboarded: false, settings: defaultSettings(), projects: [], tasks: [], events: [], notes: [], plan: null }); }}>Yes, erase everything</button><button class="btn sm ghost" onClick=${() => setConfirm(false)}>Cancel</button>` : html`<button class="btn sm ghost danger" onClick=${() => setConfirm(true)}>Erase all data…</button>`}
+        ${confirm ? html`<button class="btn sm danger" onClick=${() => { setState((cur) => syncStamp(cur, { v: 1, onboarded: false, settings: defaultSettings(), projects: [], tasks: [], events: [], notes: [], plan: null, gone: cur.gone })); }}>${stewardSync.on() ? 'Yes, erase it on every synced device' : 'Yes, erase everything'}</button><button class="btn sm ghost" onClick=${() => setConfirm(false)}>Cancel</button>` : html`<button class="btn sm ghost danger" onClick=${() => setConfirm(true)}>Erase all data…</button>`}
       </div>
       <textarea id="imp" class="in" value=${imp} onInput=${(e) => setImp(e.target.value)} placeholder="Paste a backup here to restore it"></textarea>
       <div><button class="btn sm" disabled=${!imp.trim()} onClick=${() => { try { const d = JSON.parse(imp); if (!d.tasks || !d.settings) throw 0; commit(d, 'Backup restored'); setImp(''); } catch (e) { setToast({ text: 'That isn’t a Steward backup — paste the whole copied text', id: uid() }); } }}>Restore backup</button></div>
