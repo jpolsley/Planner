@@ -358,7 +358,7 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 const fmtT = (t) => { const d = new Date(t); let h = d.getHours(), m = d.getMinutes(); const ap = h >= 12 ? 'p' : 'a'; h = h % 12 || 12; return h + (m ? ':' + String(m).padStart(2, '0') : '') + ap; };
 const fmtD = (t) => { const d = new Date(t); return WD[d.getDay()] + ' ' + MON[d.getMonth()] + ' ' + d.getDate(); };
 const relD = (t, now) => { const diff = Math.round((sod(t) - sod(now)) / DAY); if (diff === 0) return 'Today'; if (diff === 1) return 'Tomorrow'; if (diff === -1) return 'Yesterday'; if (diff > 1 && diff < 7) return WD[new Date(t).getDay()]; return fmtD(t); };
-const fmtDur = (m) => m >= 60 ? (Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '')) : m + 'm';
+const fmtDur = (m) => { m = Math.round(m || 0); return m >= 60 ? (Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '')) : m + 'm'; };
 const PRI = { asap: 0, high: 1, med: 2, low: 3 };
 const PRI_LABEL = { asap: 'ASAP', high: 'High', med: 'Medium', low: 'Low' };
 const toLocalInput = (t) => { if (!t) return ''; const d = new Date(t); const p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
@@ -2072,7 +2072,7 @@ function CalendarsPanel({ state, A, calStatus, refreshCalendars, setToast }) {
         <button class="btn sm ghost danger" onClick=${() => A.setSettings({ calendars: cals.filter((x) => x.id !== c.id) })}>Remove</button>
       </div>`; })}
       <form onSubmit=${add} style=${{ display: 'flex', gap: '8px' }}><input class="in" style=${{ flex: 1 }} value=${url} onInput=${(e) => setUrl(e.target.value)} placeholder="Paste a calendar’s secret address (.ics)" aria-label="Calendar link" /><button class="btn sm pri" disabled=${!url.trim()}>Add</button></form>
-      <p class="muted" style=${{ margin: 0 }}>Steward schedules around these meetings. They refresh every 30 minutes and are read only here. <b>Google:</b> Calendar settings → your calendar → <i>Secret address in iCal format</i>. <b>Outlook:</b> Settings → Calendar → Shared calendars → <i>Publish a calendar</i> → ICS link. <b>iCloud:</b> share the calendar publicly and copy the link.</p>
+      <p class="muted" style=${{ margin: 0 }}>Steward schedules around these meetings. They refresh every 30 minutes and are read only here. <b>Google:</b> Calendar settings → your calendar → <i>Secret address in iCal format</i>. <b>Outlook:</b> Settings → Calendar → Shared calendars → <i>Publish a calendar</i>, choose <i>Can view when I’m busy</i>, and copy the ICS link. Busy-only is enough, since Steward just needs to know when you’re taken. <b>iCloud:</b> share the calendar publicly and copy the link.</p>
     </div></div>`;
 }
 
