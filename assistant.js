@@ -33,7 +33,10 @@ const KIN_BASE = 'You are Steward, a thoughtful personal assistant and thinking 
   + 'First understand the full picture: what they are really asking, why it matters to them, and the context from what you know about them, their documents, and their planner. '
   + 'Answer the actual question in natural, warm, conversational prose. Explain, reflect, and give perspective; when something is unclear or you need more context, ask one or two good questions instead of guessing. '
   + 'Do NOT turn every reply into a to-do list. Only suggest tasks when the user asks for tasks or a plan, or when a few concrete next steps would clearly help; then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant. '
-  + 'Use the facts, documents, and planner snapshot provided; quote or cite documents by file name when you use them; never invent tasks, meetings, documents, or facts about the user. Keep replies focused unless the user wants depth.';
+  + 'Use the facts, documents, and planner snapshot provided; quote or cite documents by file name when you use them; never invent tasks, meetings, documents, or facts about the user. Keep replies focused unless the user wants depth.'
+  + '\n\nYou can change the planner, but only when the user asks you to (e.g. "move my admin tasks to Friday", "mark the venue done", "add a meeting with Sam tomorrow at 2"). Then say briefly what you will change and end the reply with a block exactly like:\n```actions\n[{"op":"update","task":"T3","due":"2026-10-02"}]\n```\n'
+  + 'Ops: {"op":"add","title":"...","minutes":30,"due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","priority":"asap|high|med|low","project":"project name"}; {"op":"update","task":"T#","title","minutes","due","start":"YYYY-MM-DD (don\'t start before)","priority","status":"todo|doing|blocked"} (only the fields that change; "due":null clears it); {"op":"done","task":"T#"}; {"op":"delete","task":"T#"}; {"op":"meeting","title":"...","start":"YYYY-MM-DDTHH:MM","minutes":30}; {"op":"move_meeting","meeting":"M#","start":"YYYY-MM-DDTHH:MM"}. '
+  + 'Use only the T# and M# references from the planner snapshot. The user reviews and confirms every change, so never claim it is already done. Never include an actions block when the user did not ask for a change.';
 
 const kinLoad = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const kinSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -236,15 +239,23 @@ async function kinLearnFrom(userText, reply) {
     .map((m) => kinMem.add(m[1].replace(/\.?\s*$/, '.'), 'chat')).filter(Boolean).slice(0, 3);
 }
 
+/* The tasks and meetings the assistant can refer to as T1, T2… and M1, M2… */
+function snapshotRefs(state, now) {
+  const tasks = state.tasks.filter((t) => t.status !== 'done')
+    .sort((a, b) => (PRI[a.priority] - PRI[b.priority]) || ((a.deadline || Infinity) - (b.deadline || Infinity))).slice(0, 40);
+  const events = state.events.filter((e) => e.end > now && e.start < addDays(sod(now), 14)).sort((a, b) => a.start - b.start).slice(0, 20);
+  return { tasks, events, map: { ...Object.fromEntries(tasks.map((t, i) => ['T' + (i + 1), t.id])), ...Object.fromEntries(events.map((e, i) => ['M' + (i + 1), e.id])) } };
+}
+const isoDay = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
 function plannerSnapshot(state, plan, now) {
-  const open = state.tasks.filter((t) => t.status !== 'done')
-    .sort((a, b) => (PRI[a.priority] - PRI[b.priority]) || ((a.deadline || Infinity) - (b.deadline || Infinity))).slice(0, 15);
-  const evs = state.events.filter((e) => e.end > now && e.start < addDays(sod(now), 7)).sort((a, b) => a.start - b.start).slice(0, 10);
+  const { tasks: open, events: evs } = snapshotRefs(state, now);
   const today = plan.blocks.filter((b) => sod(b.start) === sod(now)).slice(0, 10);
   const title = (id) => (state.tasks.find((t) => t.id === id) || {}).title || 'task';
-  const lines = ['Now: ' + fmtD(now) + ' ' + fmtT(now) + '.'];
-  lines.push('Open tasks: ' + (open.length ? open.map((t) => t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + relD(t.deadline, now) : '') + ')').join('; ') : 'none') + '.');
-  lines.push('Meetings next 7 days: ' + (evs.length ? evs.map((e) => e.title + ' ' + relD(e.start, now) + ' ' + fmtT(e.start)).join('; ') : 'none') + '.');
+  const proj = (t) => (state.projects.find((p) => p.id === t.projectId) || {}).name;
+  const lines = ['Now: ' + fmtD(now) + ' ' + fmtT(now) + ' (' + isoDay(now) + ').'];
+  lines.push('Open tasks: ' + (open.length ? open.map((t, i) => '[T' + (i + 1) + '] ' + t.title + ' (' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + (t.deadline ? ', due ' + fmtD(t.deadline) + ' ' + isoDay(t.deadline) : '') + (t.status === 'doing' ? ', in progress' : t.status === 'blocked' ? ', blocked' : '') + (proj(t) ? ', project ' + proj(t) : '') + ((plan.info[t.id] || {}).first ? ', scheduled ' + fmtD(plan.info[t.id].first) + ' ' + fmtT(plan.info[t.id].first) : '') + ')').join('; ') : 'none') + '.');
+  lines.push('Meetings next 14 days: ' + (evs.length ? evs.map((e, i) => '[M' + (i + 1) + '] ' + e.title + ' ' + fmtD(e.start) + ' ' + fmtT(e.start) + (e.src ? ' (from their calendar, read-only)' : '')).join('; ') : 'none') + '.');
   lines.push('Scheduled today: ' + (today.length ? today.map((b) => fmtT(b.start) + ' ' + title(b.taskId)).join('; ') : 'nothing') + '.');
   const active = state.projects.filter((p) => p.status !== 'done');
   if (active.length) lines.push('Projects: ' + active.map((p) => p.name).join('; ') + '.');
@@ -258,6 +269,66 @@ function kinSystem(state, plan, userText) {
     + (facts.length ? '\n\nWhat you know about the user:\n' + facts.join('\n') : '')
     + (pats.length ? '\n\nPatterns noticed from their planner:\n' + pats.join('\n') : '')
     + '\n\nPlanner snapshot:\n' + plannerSnapshot(state, plan, Date.now());
+}
+
+/* Pulls the ```actions block out of a reply. */
+function chatActions(text) {
+  const m = String(text).match(/```\s*actions\s*\n?([\s\S]*?)(```|$)/i);
+  if (!m) return { clean: String(text), actions: [], partial: false };
+  const clean = String(text).replace(m[0], '').trim();
+  if (!m[2]) return { clean, actions: [], partial: true };
+  try { const a = JSON.parse(m[1].trim().replace(/,\s*([}\]])/g, '$1')); return { clean, actions: (Array.isArray(a) ? a : [a]).filter((x) => x && x.op) }; }
+  catch (e) { return { clean, actions: [], bad: true }; }
+}
+function describeAction(a, refs, state) {
+  const task = (r) => state.tasks.find((t) => t.id === refs[r]);
+  const ev = (r) => state.events.find((e) => e.id === refs[r]);
+  const when = (v) => { const t = parseDue(v, state); return t ? fmtD(t) + (/T\d/.test(v) ? ' ' + fmtT(t) : '') : v; };
+  const t = a.task && task(a.task);
+  if (a.op === 'add') return 'Add “' + a.title + '”' + (a.minutes ? ', ' + fmtDur(+a.minutes) : '') + (a.due ? ', due ' + when(a.due) : '') + (a.priority && a.priority !== 'med' ? ', ' + (PRI_LABEL[a.priority] || a.priority) : '') + (a.project ? ', in ' + a.project : '');
+  if (a.op === 'meeting') return 'Add meeting “' + a.title + '” ' + when(a.start) + (a.minutes ? ' for ' + fmtDur(+a.minutes) : '');
+  if (a.op === 'move_meeting') { const e = a.meeting && ev(a.meeting); return e ? (e.src ? '✕ “' + e.title + '” is from your calendar; change it there' : 'Move “' + e.title + '” to ' + when(a.start)) : null; }
+  if (!t) return null;
+  if (a.op === 'done') return 'Mark “' + t.title + '” done';
+  if (a.op === 'delete') return 'Delete “' + t.title + '”';
+  if (a.op === 'update') {
+    const parts = [];
+    if (a.title) parts.push('rename to “' + a.title + '”');
+    if ('due' in a) parts.push(a.due ? 'due ' + when(a.due) : 'no deadline');
+    if (a.start) parts.push('start ' + when(a.start));
+    if (a.minutes) parts.push(fmtDur(+a.minutes));
+    if (a.priority) parts.push((PRI_LABEL[a.priority] || a.priority) + ' priority');
+    if (a.status) parts.push(({ todo: 'to do', doing: 'in progress', blocked: 'blocked' })[a.status] || a.status);
+    return parts.length ? 'Change “' + t.title + '”: ' + parts.join(', ') : null;
+  }
+  return null;
+}
+/* "2026-10-02" → end of that workday; "2026-10-02T14:00" → that time. */
+function parseDue(v, state) {
+  if (!v) return null;
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?/);
+  if (!m) return null;
+  const day = new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+  if (m[4] != null) return atMin(day, +m[4] * 60 + +m[5]);
+  return atMin(day, ((state.settings.hours[new Date(day).getDay()]) || [0, 1020])[1]);
+}
+
+function ActionCard({ x, state, A, patch }) {
+  const acts = x.actions.map((a, i) => ({ a, i, text: describeAction(a, x.refs || {}, state) })).filter((r) => r.text);
+  const [off, setOff] = useState({});
+  if (!acts.length) return x.actions.length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Steward suggested changes, but they refer to tasks that no longer exist.</div>` : null;
+  if (x.applied) return html`<div class="small muted" style=${{ marginTop: '6px' }}>✓ ${x.applied}</div>`;
+  const on = acts.filter((r) => !off[r.i] && !r.text.startsWith('✕'));
+  const apply = () => {
+    const list = on.map((r) => ({ ...r.a, task: r.a.task && x.refs[r.a.task], meeting: r.a.meeting && x.refs[r.a.meeting] }));
+    A.applyActions(list);
+    patch(x.id, () => ({ applied: 'Applied ' + list.length + ' change' + (list.length === 1 ? '' : 's') + '. Press Undo to reverse.' }));
+  };
+  return html`<div class="actcard">
+    <div class="small" style=${{ fontWeight: 600 }}>Steward wants to make ${acts.length} change${acts.length === 1 ? '' : 's'}</div>
+    ${acts.map((r) => html`<label key=${r.i} class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" disabled=${r.text.startsWith('✕')} checked=${!off[r.i] && !r.text.startsWith('✕')} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`)}
+    <div style=${{ display: 'flex', gap: '6px' }}><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>Apply ${on.length}</button><button class="btn sm ghost" onClick=${() => patch(x.id, () => ({ applied: 'Dismissed.' }))}>Dismiss</button></div>
+  </div>`;
 }
 
 /* Chat replies: only lines under a "Suggested tasks:" heading become + Add buttons. */
@@ -380,7 +451,7 @@ async function kinExtractNote(note, state) {
 }
 
 function AssistantView(ctx) {
-  const { state, plan, runCommand, setToast } = ctx;
+  const { state, plan, runCommand, setToast, A } = ctx;
   const [, force] = useState(0);
   const [tab, setTab] = useState('chat');
   const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: true, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
@@ -409,12 +480,13 @@ function AssistantView(ctx) {
     }
     const id = uid();
     const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: m.content }));
-    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text }, { id, role: 'assistant', content: '', pending: true }]);
+    const refs = snapshotRefs(state, Date.now()).map;
+    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text }, { id, role: 'assistant', content: '', pending: true, refs }]);
     setInput('');
     let reply = '';
     try {
       reply = await kinAI.ask({ messages: [{ role: 'system', content: kinSystem(state, plan, text) }, ...history], baseSystem: KIN_BASE, maxTokens: 700, onChunk: (c) => patch(id, (x) => ({ content: x.content + c })) });
-      patch(id, (x) => ({ content: reply || x.content, pending: false }));
+      patch(id, (x) => { const c = reply || x.content; const r = chatActions(c); return { content: c, pending: false, actions: r.actions }; });
     } catch (e) { patch(id, (x) => ({ content: (e.partial || x.content) + '\n[Error: ' + e.message + ']', pending: false })); return; }
     if (prefs.learn || /^\s*(please\s+)?remember\b/i.test(text)) {
       try { const learned = await kinLearnFrom(text, reply); if (learned.length) patch(id, () => ({ learned: learned.map((m) => m.text) })); } catch (e) {}
@@ -504,7 +576,8 @@ function AssistantView(ctx) {
       <div style=${{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '240px', maxHeight: '58vh', overflow: 'auto' }} aria-live="polite">
         ${!msgs.length ? html`<p class="muted small">Talk to Steward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-          <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.content || (x.pending ? '…' : '')}</div>
+          <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (r.clean || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
+          ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
           ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
           ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
         </div>`)}

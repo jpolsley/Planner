@@ -7,6 +7,11 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with a
 - **Grows with you:** after each chat, Steward saves lasting facts about you, such as your work, routines, goals, and preferences. It also notices patterns in how you use the planner: how your estimates compare to actual time, your best time of day, and whether deadlines slip. Both go into every answer. To view, edit, delete, back up, or restore what it knows, open **Assistant → What I know**. You can also say "remember that …" to teach it something directly. The model itself never changes. The learning is this editable memory.
 - **Boards:** Tasks and each project have a List and a Board view. Group the board by status, priority, project, or stage. Drag cards between columns. On a phone, hold a card for a moment and then drag it.
 - **Checklists and repeats:** tasks can have steps (Steward can draft them with **Break it down**). They can also repeat, for example "water the plants every monday". Finishing a repeating task adds the next one.
+- **Sync across devices:** with your Space connected, the planner and Steward's memory sync between your phone and computer through a private Hugging Face dataset (`<you>/steward-data`). If two devices change things at once, the changes are merged task by task. The Space's `HF_TOKEN` needs write access, or you can add a separate `HF_WRITE_TOKEN` secret.
+- **Calendars:** paste a calendar's secret `.ics` address in Settings → Calendars (Google, Outlook or iCloud). Steward schedules around those meetings and refreshes them every 30 minutes.
+- **Focus timer:** start a timer on any task. The time you track counts against its estimate and teaches Steward how long things really take.
+- **Daily plan, wrap-up and weekly review:** these cards show on Today in the morning, at the end of the day, and at the end of the week. Steward can talk the plan through with you and write your weekly review, which is saved to Notes.
+- **Steward can make changes:** ask in chat ("move my admin tasks to Friday"). Steward lists the changes, and nothing happens until you press Apply. Undo works as usual.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
 ## Your own AI server on Hugging Face (recommended)
@@ -22,6 +27,7 @@ See `space/README.md` for the Space's settings. To add documents, upload `.txt`,
 | `index.html` | The planner app (React + htm, no build step) |
 | `kin-engine.js` | In-browser inference engine from Kin Studio |
 | `assistant.js` | Assistant, memory, and pattern learning |
+| `sync.js` | Sync and calendar links through your Space |
 | `tools/lock.mjs`, `tools/gate.html` | Build the password-locked site into `dist/` |
 
 ## Publish on GitHub Pages with a password
