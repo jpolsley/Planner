@@ -5,6 +5,8 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with a
 - **No backend, no API key.** Your planner, chats, and memories are stored only in your browser.
 - **Assistant:** runs Qwen2.5 1.5B in your browser via [Transformers.js](https://huggingface.co/docs/transformers.js). If a device can't run it, the assistant switches to Qwen2.5 0.5B on its own.
 - **Grows with you:** after each chat, Steward saves lasting facts about you, such as your work, routines, goals, and preferences. It also notices patterns in how you use the planner: how your estimates compare to actual time, your best time of day, and whether deadlines slip. Both go into every answer. To view, edit, delete, back up, or restore what it knows, open **Assistant → What I know**. You can also say "remember that …" to teach it something directly. The model itself never changes. The learning is this editable memory.
+- **Boards:** Tasks and each project have a List and a Board view. Group the board by status, priority, project, or stage. Drag cards between columns. On a phone, hold a card for a moment and then drag it.
+- **Checklists and repeats:** tasks can have steps (Steward can draft them with **Break it down**). They can also repeat, for example "water the plants every monday". Finishing a repeating task adds the next one.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
 ## Your own AI server on Hugging Face (recommended)

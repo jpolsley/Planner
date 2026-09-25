@@ -185,7 +185,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .lbl-pill{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);font-size:11px;line-height:16px}
 /* project page: description · properties · stages */
 .pd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:'main props' 'docs tasks';gap:14px 26px;align-items:start}
-.pd-main{grid-area:main}.pd-props{grid-area:props}.pd-tasks{grid-area:tasks}.pd-docs{grid-area:docs}
+.pd.wide{grid-template-areas:'main props' 'tasks tasks' 'docs docs'}.pd-main{grid-area:main}.pd-props{grid-area:props}.pd-tasks{grid-area:tasks}.pd-docs{grid-area:docs}
 .pd-desc{width:100%;min-height:110px;margin-top:10px;background:none;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;line-height:1.55;color:var(--ink);resize:vertical}
 .pd-props{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .pd-health{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;display:flex;flex-direction:column;gap:2px;color:var(--good)}
@@ -211,6 +211,30 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .bcard{text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:3px}
 .bcard .mono{font-size:11px}.bcard.dn b{text-decoration:line-through;color:var(--ink-3)}
 .bcard-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.bcard-tags .lbl-pill{margin:0}
+.kb{position:relative;align-items:flex-start;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.kb .bcol{flex:0 0 272px;max-height:calc(100vh - 230px);min-height:140px;scroll-snap-align:start;transition:border-color .12s,background .12s}
+.bcol-body{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:44px;margin:0 -4px;padding:0 4px}
+.bcol.over{border-color:var(--ink-2);background:var(--sunk)}
+.bcol-new{border-style:dashed;min-height:0!important;justify-content:center}
+.bcol-empty{border:1px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--ink-3);font-size:12px}
+.kb .bcard{cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;gap:5px}
+.kb .bcard:focus-visible{outline:2px solid var(--ink-2);outline-offset:1px}
+.kb.dragging,.kb.dragging *{cursor:grabbing}
+.bcard.lifted{opacity:.3}
+.bghost{position:fixed;z-index:80;pointer-events:none;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,.5);transform:rotate(1.5deg)}
+.bc-top{display:flex;gap:8px;align-items:flex-start}.bc-top b{font-weight:560;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.bcard .ck{width:18px;height:18px;margin-top:1px;border-radius:50%;border:1.5px solid var(--ink-3);background:none;display:grid;place-items:center;padding:0;flex:none;color:#000}
+.bcard .ck svg{width:12px;height:12px}.bcard.dn .ck{background:var(--good);border-color:var(--good)}
+.bc-meta{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;font:500 11px var(--f-mono);color:var(--ink-3);padding-left:26px}
+.bc-meta svg{width:12px;height:12px;vertical-align:-2px;margin-right:3px}
+.bc-meta .bad{color:var(--bad)}.bc-meta .okc{color:var(--good)}
+.pdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:-6px}
+.kb .bcard-tags{padding-left:26px}
+.kb-bar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:10px;padding:2px;gap:2px}
+.seg button{display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-radius:8px;padding:5px 11px;color:var(--ink-3);font-size:13px}
+.seg button svg{width:15px;height:15px}.seg button.on{background:var(--sunk);color:var(--ink)}
+.cl{display:flex;flex-direction:column}.cl-i{padding:2px}.cl-i .ghostin{flex:1;min-width:0;max-width:none;text-align:left}.cl-i.dn .ghostin{text-decoration:line-through;color:var(--ink-3)}
 .gantt{position:relative;padding:22px 0 6px}
 .g-axis{position:absolute;top:0;left:38%;right:0;display:flex;justify-content:space-between;font:500 10.5px var(--f-mono);color:var(--ink-3)}
 .g-today,.g-dl{position:absolute;top:16px;bottom:0;width:0;border-left:1px dashed var(--bad);z-index:1;pointer-events:none}.g-dl{border-left:1.5px solid var(--warn)}
@@ -254,7 +278,7 @@ select.ghostin{text-align-last:right}
 .stg-t .mono{font-size:11.5px;white-space:nowrap}
 .stg-plus{margin:4px 0}
 .stg-add{display:flex;gap:8px;margin:6px 0}.stg-add .in{flex:1;min-width:0}
-@media (max-width:860px){.phero{padding:14px;gap:14px}.ring{width:64px;height:64px}.ring span{width:50px;height:50px;font-size:16px;padding-top:15px}.phero-main .title-in{font-size:22px}.stats{gap:14px}.upnext{max-width:none;width:100%}.bcol{flex-basis:200px}.pd{grid-template-columns:1fr;grid-template-areas:'main' 'props' 'tasks' 'docs';gap:12px}.pd-desc{min-height:52px}.npm{flex-direction:column}.npm-side{width:auto;border-left:0;border-top:1px solid var(--line)}}
+@media (max-width:860px){.phero{padding:14px;gap:14px}.ring{width:64px;height:64px}.ring span{width:50px;height:50px;font-size:16px;padding-top:15px}.phero-main .title-in{font-size:22px}.stats{gap:14px}.upnext{max-width:none;width:100%}.bcol{flex-basis:200px}.kb .bcol{flex-basis:84vw;max-height:none}.kb{margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px}.pd,.pd.wide{grid-template-columns:1fr;grid-template-areas:'main' 'props' 'tasks' 'docs';gap:12px}.pd-desc{min-height:52px}.npm{flex-direction:column}.npm-side{width:auto;border-left:0;border-top:1px solid var(--line)}}
 .nav .mlbl{display:none}
 .cmd textarea{flex:1;border:0;background:none;outline:none;padding:8px 0;font:inherit;font-size:15px;min-width:0;resize:none;line-height:1.4;max-height:40vh;color:inherit}
 .dump{margin-top:10px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -462,6 +486,38 @@ function attention(state, plan, now) {
   return out;
 }
 const remainingMin = (t) => Math.max(0, (t.duration || 30) - (t.spent || 0));
+/* ---------- repeating tasks: finishing one creates the next ---------- */
+const REPEAT = { daily: 'every day', weekdays: 'every weekday', weekly: 'every week', biweekly: 'every 2 weeks', monthly: 'every month' };
+const REPEAT_DAYS = { daily: 1, weekdays: 1, weekly: 7, biweekly: 14, monthly: 28 };
+function repeatStep(kind, t) {
+  if (kind === 'monthly') { const d = new Date(t); d.setMonth(d.getMonth() + 1); return d.getTime(); }
+  let x = addDays(t, kind === 'weekly' ? 7 : kind === 'biweekly' ? 14 : 1);
+  while (kind === 'weekdays' && [0, 6].includes(new Date(x).getDay())) x = addDays(x, 1);
+  return x;
+}
+function nextOccurrence(t, now) {
+  const anchor = t.deadline || t.startDate || sod(t.created || now);
+  let next = repeatStep(t.repeat, anchor);
+  while (sod(next) <= sod(now)) next = repeatStep(t.repeat, next);
+  const delta = next - anchor;
+  const open = t.deadline ? Math.max(sod(addDays(next, -(REPEAT_DAYS[t.repeat] - 1))), addDays(sod(now), 1)) : sod(next);
+  return { ...t, id: uid(), status: 'todo', completed: null, spent: 0, locked: [], deps: [], created: now, repeatedTo: null,
+    deadline: t.deadline ? t.deadline + delta : null, startDate: t.startDate && t.deadline ? t.startDate + delta : open,
+    checklist: (t.checklist || []).map((x) => ({ ...x, done: false })) };
+}
+/* Sets a task's status. Completing a repeating task adds the next one; un-completing removes it again if untouched. */
+function withStatus(s, id, status) {
+  const t = s.tasks.find((x) => x.id === id);
+  if (!t) return s;
+  const now = Date.now(), was = t.status === 'done', is = status === 'done';
+  let tasks = s.tasks, upd = { ...t, status, completed: is ? (was ? t.completed : now) : null };
+  if (is && !was && t.repeat) { const n = nextOccurrence(t, now); upd = { ...upd, repeat: null, repeatedTo: n.id }; tasks = [...tasks, n]; }
+  if (!is && was && t.repeatedTo) {
+    const n = tasks.find((x) => x.id === t.repeatedTo);
+    if (n && n.status === 'todo' && !n.spent) { tasks = tasks.filter((x) => x.id !== n.id); upd = { ...upd, repeat: n.repeat, repeatedTo: null }; }
+  }
+  return { ...s, tasks: tasks.map((x) => (x.id === id ? upd : x)) };
+}
 
 /* ---------- natural-language capture (rule-based; runs on-device) ---------- */
 function parseWhen(text, now) {
@@ -502,6 +558,10 @@ function parseCommand(raw, state, now) {
   s = s.replace(/\b(asap|urgent|urgently)\b|!!!/i, () => { priority = 'asap'; return ' '; });
   s = s.replace(/\b(high priority|important|high)\b|!!/i, (m) => { priority = priority || 'high'; return ' '; });
   s = s.replace(/\b(low priority|someday|whenever)\b/i, () => { priority = priority || 'low'; return ' '; });
+  let repeat = null;
+  const rp = [[/\b(every ?day|daily|each day)\b/i, 'daily'], [/\b(every weekday|each weekday|weekdays)\b/i, 'weekdays'], [/\b(every other week|every 2 weeks|biweekly|fortnightly)\b/i, 'biweekly'], [/\b(every week|weekly|each week)\b/i, 'weekly'], [/\b(every month|monthly|each month)\b/i, 'monthly']];
+  for (const [re, k] of rp) if (!repeat && re.test(s)) { repeat = k; s = s.replace(re, ' '); }
+  if (!repeat) s = s.replace(/\b(?:every|each) (?=(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b)/i, () => { repeat = 'weekly'; return ' '; });
   let projectId = null;
   s = s.replace(/#([\w-]+)/, (m, tag) => { const p = state.projects.find((p) => p.name.toLowerCase().replace(/\s+/g, '-').startsWith(tag.toLowerCase())); if (p) projectId = p.id; return ' '; });
   const hard = /\bby\b/i.test(s);
@@ -520,7 +580,7 @@ function parseCommand(raw, state, now) {
   let deadline = null;
   if (w.date != null) deadline = w.time != null ? atMin(w.date, w.time) : atMin(w.date, (state.settings.hours[new Date(w.date).getDay()] || [0, 1020])[1]);
   if (!title) { title = w.rest.replace(/\s{2,}/g, ' ').trim() || text; title = title.charAt(0).toUpperCase() + title.slice(1); }
-  return { kind: 'task', title: title || 'Untitled task', duration: duration || 30, priority: priority || 'med', deadline, projectId, hard };
+  return { kind: 'task', title: title || 'Untitled task', duration: duration || 30, priority: priority || 'med', deadline, projectId, hard, repeat };
 }
 
 /* ---------- project planner (template engine; editable draft) ---------- */
@@ -665,7 +725,7 @@ const PATHS = {
   gear: 'M12 9a3 3 0 100 6 3 3 0 000-6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   search: 'M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4',
   check: 'M5 12l5 5 9-10', lock: 'M6 11h12v9H6zM8 11V8a4 4 0 118 0v3', plus: 'M12 5v14M5 12h14', undo: 'M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3',
-  spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z', x: 'M6 6l12 12M18 6L6 18', play: 'M7 5l12 7-12 7z', left: 'M15 6l-6 6 6 6', right: 'M9 6l6 6-6 6',
+  spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z', x: 'M6 6l12 12M18 6L6 18', play: 'M7 5l12 7-12 7z', left: 'M15 6l-6 6 6 6', right: 'M9 6l6 6-6 6', repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3', board: 'M4 4h5v16H4zM10.5 4h4.5v10h-4.5zM17 4h3v7h-3z', list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
 };
 const Icon = ({ n, cls }) => html`<svg class=${cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d=${PATHS[n]} /></svg>`;
 
@@ -730,7 +790,8 @@ function App() {
     addTask: (o) => { const t = { id: uid(), status: 'todo', priority: 'med', duration: 30, deps: [], locked: [], spent: 0, created: Date.now(), ...o }; commit((s) => ({ ...s, tasks: [...s.tasks, t] })); return t; },
     updTask: (id, patch, label) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) }), label),
     delTask: (id) => commit((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id).map((t) => ({ ...t, deps: (t.deps || []).filter((d) => d !== id) })) }), 'Task deleted'),
-    toggleDone: (id) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: t.status === 'done' ? 'todo' : 'done', completed: t.status === 'done' ? null : Date.now() } : t)) }), 'Marked complete'),
+    toggleDone: (id) => commit((s) => { const t = s.tasks.find((x) => x.id === id); return t ? withStatus(s, id, t.status === 'done' ? 'todo' : 'done') : s; }, 'Marked complete'),
+    moveTask: (id, patch, label) => commit((s) => { const { status, ...rest } = patch; const s2 = status ? withStatus(s, id, status) : s; return { ...s2, tasks: s2.tasks.map((t) => (t.id === id ? { ...t, ...rest } : t)) }; }, label),
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
     updEvent: (id, patch, label) => commit((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
     delEvent: (id) => commit((s) => ({ ...s, events: s.events.filter((e) => e.id !== id) }), 'Event deleted'),
@@ -765,7 +826,7 @@ function App() {
       say([{ tag: 'done', text: 'Added meeting “' + e.title + '” · ' + relD(e.start, now) + ' ' + fmtT(e.start) + '–' + fmtT(e.end) + '. Flexible work around it was reflowed.' }, ...(clash ? [{ tag: 'sugg', text: 'Overlaps “' + clash.title + '”. Steward didn’t move either — adjust one if needed.' }] : [])]);
       return;
     }
-    const t = A.addTask({ title: p.title, duration: p.duration, priority: p.priority, deadline: p.deadline, projectId: p.projectId, hard: !!(p.hard && p.deadline) });
+    const t = A.addTask({ title: p.title, duration: p.duration, priority: p.priority, deadline: p.deadline, projectId: p.projectId, hard: !!(p.hard && p.deadline), repeat: p.repeat || null });
     const sched = runSchedule({ ...state, tasks: [...state.tasks, t] }, Date.now());
     const inf = sched.info[t.id] || {};
     const where = auto ? (inf.first ? 'scheduled ' + relD(inf.first, now) + ' ' + fmtT(inf.first) : 'not placed yet') : 'will be placed when you apply the plan';
@@ -1025,7 +1086,7 @@ function TaskRow({ t, plan, now, A, setDrawer, state }) {
   const when = t.status === 'done' ? 'Done' : inf.first ? relD(inf.first, now) + ' ' + fmtT(inf.first) : inf.unscheduled ? 'No room' : '—';
   return html`<div class="row click" onClick=${() => setDrawer({ type: 'task', id: t.id })}>
     <button class=${'chk' + (t.status === 'done' ? ' on' : '')} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
-    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.title}</b><small><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span> · ${fmtDur(t.duration)}${t.deadline ? ' · due ' + relD(t.deadline, now) : ''}${p ? ' · ' + p.name : ''}${t.status === 'blocked' ? ' · blocked' : ''}${t.status === 'doing' ? ' · in progress' : ''}${(t.labels || []).map((l) => html` <span class="lbl-pill">${l}</span>`)}</small></div>
+    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.title}</b><small><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span> · ${fmtDur(t.duration)}${t.deadline ? ' · due ' + relD(t.deadline, now) : ''}${p ? ' · ' + p.name : ''}${t.status === 'blocked' ? ' · blocked' : ''}${t.status === 'doing' ? ' · in progress' : ''}${(t.checklist || []).length ? ' · ' + t.checklist.filter((x) => x.done).length + '/' + t.checklist.length + ' steps' : ''}${t.repeat ? ' · ' + REPEAT[t.repeat] : ''}${(t.labels || []).map((l) => html` <span class="lbl-pill">${l}</span>`)}</small></div>
     <span class="time" style=${inf.late || inf.unscheduled ? { color: 'var(--bad)' } : null}>${when}</span>
   </div>`;
 }
@@ -1061,6 +1122,9 @@ function TasksView(ctx) {
   const { state, A, runCommand, log, plan } = ctx;
   const [filter, setFilter] = useState('open');
   const [group, setGroup] = useState('when');
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem('steward.tview') || 'list'; } catch (e) { return 'list'; } });
+  const [by, setBy] = useState(() => { try { return localStorage.getItem('steward.tby') || 'status'; } catch (e) { return 'status'; } });
+  const keep = (k, v, set) => { set(v); try { localStorage.setItem(k, v); } catch (e) {} };
   const list = state.tasks.filter((t) => filter === 'all' || (filter === 'open' ? t.status !== 'done' : filter === 'done' ? t.status === 'done' : t.status === filter));
   let groups;
   if (group === 'project') { groups = [...state.projects.map((p) => [p.name, list.filter((t) => t.projectId === p.id)]), ['No project', list.filter((t) => !t.projectId || !state.projects.some((p) => p.id === t.projectId))]]; }
@@ -1070,14 +1134,47 @@ function TasksView(ctx) {
     <header class="hdr"><div><div class="sub">${state.tasks.filter((t) => t.status !== 'done').length} open</div><h1>Tasks</h1></div></header>
     <${CommandBar} ...${ctx} />
     <div style=${{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '18px 0 4px', alignItems: 'center' }}>
+      <div class="seg" role="tablist" aria-label="View">${[['list', 'List', 'list'], ['board', 'Board', 'board']].map(([k, l, i]) => html`<button key=${k} role="tab" aria-selected=${mode === k} class=${mode === k ? 'on' : ''} onClick=${() => keep('steward.tview', k, setMode)}><${Icon} n=${i} />${l}</button>`)}</div>
+      ${mode === 'board' ? html`<span class="muted" style=${{ fontSize: '12px' }}>Columns</span><${BoardBy} by=${by} set=${(v) => keep('steward.tby', v, setBy)} opts=${[['status', 'Status'], ['priority', 'Priority'], ['project', 'Project']]} />
+      ${by !== 'status' ? html`<div class="chips">${[['open', 'Open'], ['all', 'All']].map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>` : null}` : html`
       <div class="chips">${[['open', 'Open'], ['blocked', 'Blocked'], ['done', 'Done'], ['all', 'All']].map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>
       <span class="muted" style=${{ fontSize: '12px' }}>Group by</span>
-      <div class="chips">${[['when', 'Schedule'], ['project', 'Project'], ['priority', 'Priority']].map(([k, l]) => html`<button key=${k} class=${'chip' + (group === k ? ' on' : '')} onClick=${() => setGroup(k)}>${l}</button>`)}</div>
+      <div class="chips">${[['when', 'Schedule'], ['project', 'Project'], ['priority', 'Priority']].map(([k, l]) => html`<button key=${k} class=${'chip' + (group === k ? ' on' : '')} onClick=${() => setGroup(k)}>${l}</button>`)}</div>`}
       <span style=${{ flex: 1 }}></span>
       <button class="btn sm pri" onClick=${() => { const t = A.addTask({ title: 'New task' }); ctx.setDrawer({ type: 'task', id: t.id }); }}><${Icon} n="plus" />New task</button>
     </div>
+    ${mode === 'board' ? html`<div style=${{ marginTop: '14px' }}><${Kanban} ...${ctx} by=${by} ts=${by === 'status' ? state.tasks : state.tasks.filter((t) => filter === 'all' || t.status !== 'done')} /></div>` : html`
     ${groups.filter(([, ts]) => ts.length).map(([g, ts]) => html`<div key=${g}><div class="grp">${g} · ${ts.length}</div><div class="panel rows">${ts.map((t) => html`<${TaskRow} key=${t.id} t=${t} ...${ctx} />`)}</div></div>`)}
-    ${!list.length ? html`<div class="panel empty" style=${{ marginTop: '16px' }}>No tasks here.</div>` : null}
+    ${!list.length ? html`<div class="panel empty" style=${{ marginTop: '16px' }}>No tasks here.</div>` : null}`}
+  </div>`;
+}
+
+/* Steps inside a task. Steward can draft them from the title and notes. */
+function Checklist({ t, up, state, setToast }) {
+  const [v, setV] = useState('');
+  const [busy, setBusy] = useState(false);
+  const cl = t.checklist || [];
+  const set = (list) => up({ checklist: list });
+  const add = (e) => { e.preventDefault(); if (!v.trim()) return; set([...cl, { id: uid(), text: v.trim(), done: false }]); setV(''); };
+  const aiOn = typeof kinAIAvailable === 'function' && kinAIAvailable();
+  const draft = async () => {
+    setBusy(true);
+    try { const steps = await kinBreakdown(t, state); if (!steps.length) throw new Error('No steps came back. Add a few notes to the task and try again.'); set([...cl, ...steps.map((x) => ({ id: uid(), text: x, done: false }))]); }
+    catch (e) { setToast && setToast({ text: e.message || String(e), id: uid() }); }
+    finally { setBusy(false); }
+  };
+  const done = cl.filter((x) => x.done).length;
+  return html`<div class="fld"><label>Checklist${cl.length ? ' · ' + done + '/' + cl.length : ''}</label>
+    ${cl.length ? html`<div class="bar" style=${{ margin: '0 0 6px' }}><i style=${{ width: done / cl.length * 100 + '%' }}></i></div>` : null}
+    <div class="cl">${cl.map((x) => html`<div key=${x.id} class=${'stg-t cl-i' + (x.done ? ' dn' : '')}>
+      <button class="ck" onClick=${() => set(cl.map((y) => (y.id === x.id ? { ...y, done: !y.done } : y)))} aria-label=${x.done ? 'Mark step not done' : 'Mark step done'}>${x.done ? html`<${Icon} n="check" />` : null}</button>
+      <input class="ghostin" value=${x.text} onInput=${(e) => set(cl.map((y) => (y.id === x.id ? { ...y, text: e.target.value } : y)))} aria-label="Step" />
+      <button class="btn sm ghost" onClick=${() => set(cl.filter((y) => y.id !== x.id))} aria-label="Remove step"><${Icon} n="x" /></button>
+    </div>`)}</div>
+    <div style=${{ display: 'flex', gap: '6px' }}>
+      <form onSubmit=${add} style=${{ flex: 1 }}><input class="in" value=${v} onInput=${(e) => setV(e.target.value)} placeholder="Add a step" aria-label="Add a step" /></form>
+      ${aiOn ? html`<button class="btn sm" disabled=${busy} onClick=${draft}><${Icon} n="spark" />${busy ? 'Thinking…' : cl.length ? 'More steps' : 'Break it down'}</button>` : null}
+    </div>
   </div>`;
 }
 
@@ -1107,13 +1204,16 @@ function TaskDrawer(ctx) {
     <div class="grid3">
       <div class="fld"><label for="t-dur">Estimate</label><select id="t-dur" class="in" value=${t.duration} onChange=${(e) => up({ duration: +e.target.value })}>${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].concat([t.duration]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}</select></div>
       <div class="fld"><label for="t-pri">Priority</label><select id="t-pri" class="in" value=${t.priority} onChange=${(e) => up({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select></div>
-      <div class="fld"><label for="t-st">Status</label><select id="t-st" class="in" value=${t.status} onChange=${(e) => up({ status: e.target.value, completed: e.target.value === 'done' ? Date.now() : null })}>${[['todo', 'To do'], ['doing', 'In progress'], ['blocked', 'Blocked'], ['done', 'Done']].map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></div>
+      <div class="fld"><label for="t-st">Status</label><select id="t-st" class="in" value=${t.status} onChange=${(e) => A.moveTask(t.id, { status: e.target.value })}>${T_STATUS.map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></div>
     </div>
     <div class="grid2">
       <div class="fld"><label for="t-dl">Deadline</label><input id="t-dl" type="datetime-local" class="in" value=${toLocalDT(t.deadline)} onChange=${(e) => up({ deadline: e.target.value ? new Date(e.target.value).getTime() : null })} /></div>
       <label class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', gridColumn: '1 / -1', color: 'var(--ink-2)' }}><input type="checkbox" checked=${!!t.hard} onChange=${(e) => up({ hard: e.target.checked })} />Hard deadline: schedule it first, and flag it red if it can’t make it</label>
       <div class="fld"><label for="t-sd">Don’t start before</label><input id="t-sd" type="date" class="in" value=${toLocalInput(t.startDate)} onChange=${(e) => up({ startDate: fromDateInput(e.target.value) })} /></div>
+      <div class="fld"><label for="t-rep">Repeat</label><select id="t-rep" class="in" value=${t.repeat || ''} onChange=${(e) => up({ repeat: e.target.value || null })}><option value="">Doesn’t repeat</option>${Object.entries(REPEAT).map(([k, l]) => html`<option key=${k} value=${k}>${l[0].toUpperCase() + l.slice(1)}</option>`)}</select></div>
     </div>
+    ${t.repeat ? html`<div class="muted small" style=${{ marginTop: '-4px' }}>When you finish this, Steward adds the next one${t.deadline ? ', due ' + fmtD(nextOccurrence(t, now).deadline) : ''}.</div>` : null}
+    <${Checklist} t=${t} up=${up} state=${state} setToast=${ctx.setToast} />
     <div class="grid2">
       <div class="fld"><label for="t-proj">Project</label><select id="t-proj" class="in" value=${t.projectId || ''} onChange=${(e) => up({ projectId: e.target.value || null })}><option value="">None</option>${state.projects.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></div>
       <div class="fld"><label for="t-chunk">Smallest work block</label><select id="t-chunk" class="in" value=${t.minChunk || ''} onChange=${(e) => up({ minChunk: +e.target.value || null })}><option value="">Default (${state.settings.minChunk}m)</option>${[15, 30, 60, 90, 120].map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}<option value=${9999}>Don’t split</option></select></div>
@@ -1149,6 +1249,142 @@ function EventModal({ ev, A, onClose, now }) {
 }
 
 /* ================= Projects ================= */
+/* ================= Kanban board ================= */
+const T_STATUS = [['todo', 'To do'], ['doing', 'In progress'], ['blocked', 'Blocked'], ['done', 'Done']];
+/* Columns for a set of tasks grouped one way. Each column's `patch` is what dropping a card there changes. */
+function boardColumns(by, ts, state, p) {
+  if (by === 'status') return T_STATUS.map(([k, l]) => ({ key: k, label: l, patch: { status: k }, tasks: ts.filter((t) => (t.status || 'todo') === k) }));
+  if (by === 'priority') return ['asap', 'high', 'med', 'low'].map((k) => ({ key: k, label: PRI_LABEL[k], patch: { priority: k }, tasks: ts.filter((t) => t.priority === k) }));
+  if (by === 'stage') return projectStages(p, ts).map((s) => ({ key: s || '_', label: s || 'Tasks', patch: { stage: s || null }, tasks: ts.filter((t) => (t.stage || '') === s) }));
+  const known = new Set(state.projects.map((x) => x.id));
+  return [...state.projects.filter((x) => x.status !== 'done' || ts.some((t) => t.projectId === x.id)).map((x) => ({ key: x.id, label: x.name, color: pColor(x.color), patch: { projectId: x.id, stage: null }, tasks: ts.filter((t) => t.projectId === x.id) })),
+    { key: '_', label: 'No project', patch: { projectId: null, stage: null }, tasks: ts.filter((t) => !t.projectId || !known.has(t.projectId)) }];
+}
+
+function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn }) {
+  const cols = boardColumns(by, ts, state, p);
+  const [drag, setDrag] = useState(null); // { id, from, x, y, dx, dy, w, over }
+  const [adding, setAdding] = useState(null);
+  const [nt, setNt] = useState('');
+  const [allDone, setAllDone] = useState(false);
+  const boardRef = useRef();
+  const clickBlock = useRef(false);
+  const info = (t) => plan.info[t.id] || {};
+  const order = (a, b) => (a.status === 'done') - (b.status === 'done') || (a.status === 'done' ? (b.completed || 0) - (a.completed || 0) : (info(a).first || 9e15) - (info(b).first || 9e15)) || PRI[a.priority] - PRI[b.priority];
+  const colAt = (x, y) => { const el = document.elementFromPoint(x, y); const c = el && el.closest('[data-col]'); return c ? c.getAttribute('data-col') : null; };
+  const drop = (id, key) => { const c = cols.find((c) => c.key === key); if (c) A.moveTask(id, c.patch, 'Moved to ' + c.label); };
+
+  /* Mouse: drag after a small move. Touch: hold for a moment, then drag (a quick swipe still scrolls). */
+  const down = (e, t, from) => {
+    if (e.button > 0) return;
+    const sx = e.clientX, sy = e.clientY, touch = e.pointerType !== 'mouse';
+    const el = e.currentTarget;
+    let active = false, timer = null, last = { x: sx, y: sy };
+    const begin = () => {
+      active = true;
+      const r = el.getBoundingClientRect();
+      setDrag({ id: t.id, from, x: last.x, y: last.y, dx: sx - r.left, dy: sy - r.top, w: r.width, over: from });
+      if (touch && navigator.vibrate) navigator.vibrate(12);
+    };
+    const blockScroll = (ev) => { if (active) ev.preventDefault(); };
+    const move = (ev) => {
+      last = { x: ev.clientX, y: ev.clientY };
+      if (!active) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) { if (touch) end(); else begin(); }
+        return;
+      }
+      const b = boardRef.current;
+      if (b) { const r = b.getBoundingClientRect(); if (ev.clientX > r.right - 40) b.scrollLeft += 14; else if (ev.clientX < r.left + 40) b.scrollLeft -= 14; }
+      setDrag((d) => d && { ...d, x: ev.clientX, y: ev.clientY, over: colAt(ev.clientX, ev.clientY) });
+    };
+    const end = () => {
+      clearTimeout(timer);
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel);
+      removeEventListener('touchmove', blockScroll);
+    };
+    const cancel = () => { end(); setDrag(null); };
+    const up = (ev) => {
+      const was = active;
+      end();
+      if (!was) return;
+      clickBlock.current = true; setTimeout(() => { clickBlock.current = false; }, 50);
+      const key = colAt(ev.clientX, ev.clientY);
+      setDrag(null);
+      if (key != null && key !== from) drop(t.id, key);
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', cancel);
+    addEventListener('touchmove', blockScroll, { passive: false });
+    if (touch) timer = setTimeout(begin, 280);
+  };
+  useEffect(() => { const k = (e) => e.key === 'Escape' && setDrag(null); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+
+  const add = (c) => {
+    if (!nt.trim()) return;
+    const q = parseCommand(nt, state, Date.now());
+    const base = p ? { projectId: p.id } : {};
+    A.addTask({ title: q.title || nt, duration: q.duration || 30, priority: q.priority || 'med', deadline: q.deadline || null, hard: !!(q.hard && q.deadline), repeat: q.repeat || null, ...base, ...(q.projectId ? { projectId: q.projectId } : {}), ...c.patch, ...(c.patch.status === 'done' ? { completed: Date.now() } : {}) });
+    setNt('');
+  };
+  const card = (t, c) => {
+    const f = info(t).first, pr = by !== 'project' && !p && state.projects.find((x) => x.id === t.projectId);
+    const cl = t.checklist || [], cd = cl.filter((x) => x.done).length;
+    const due = t.deadline && t.status !== 'done' ? t.deadline : null;
+    return html`<div key=${t.id} role="button" tabindex="0" class=${'bcard' + (t.status === 'done' ? ' dn' : '') + (drag && drag.id === t.id ? ' lifted' : '')}
+      onPointerDown=${(e) => down(e, t, c.key)}
+      onClick=${() => { if (!clickBlock.current) setDrawer({ type: 'task', id: t.id }); }}
+      onKeyDown=${(e) => e.key === 'Enter' && setDrawer({ type: 'task', id: t.id })}>
+      <div class="bc-top">
+        <button class="ck" onPointerDown=${(e) => e.stopPropagation()} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
+        <b>${t.title}</b>
+      </div>
+      <span class="bc-meta">
+        ${pr ? html`<span class="pdot" style=${{ background: pColor(pr.color) }}></span><span>${pr.name}</span>` : null}
+        <span>${fmtDur(t.duration || 30)}</span>
+        ${t.status !== 'done' && f ? html`<span>${relD(f, now)}</span>` : t.status !== 'done' && info(t).unscheduled ? html`<span class="bad">No room</span>` : null}
+        ${due ? html`<span class=${info(t).late || due < now ? 'bad' : ''}>due ${relD(due, now)}</span>` : null}
+        ${cl.length ? html`<span class=${cd === cl.length ? 'okc' : ''}><${Icon} n="tasks" />${cd}/${cl.length}</span>` : null}
+        ${t.repeat ? html`<span title=${'Repeats ' + REPEAT[t.repeat]}><${Icon} n="repeat" /></span>` : null}
+      </span>
+      ${(by !== 'priority' && (t.priority === 'asap' || t.priority === 'high')) || (by !== 'status' && (t.status === 'blocked' || t.status === 'doing')) || t.hard || (t.labels || []).length ? html`<span class="bcard-tags">
+        ${by !== 'priority' && (t.priority === 'asap' || t.priority === 'high') ? html`<span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>` : null}
+        ${by !== 'status' && t.status === 'blocked' ? html`<span class="lbl-pill">blocked</span>` : null}
+        ${by !== 'status' && t.status === 'doing' ? html`<span class="lbl-pill">in progress</span>` : null}
+        ${t.hard ? html`<span class="lbl-pill">hard</span>` : null}
+        ${(t.labels || []).map((l) => html`<span key=${l} class="lbl-pill">${l}</span>`)}
+      </span>` : null}
+    </div>`;
+  };
+  const dragged = drag && ts.find((t) => t.id === drag.id);
+  return html`<div class=${'board kb' + (drag ? ' dragging' : '')} ref=${boardRef}>
+    ${cols.map((c) => {
+      const list = [...c.tasks].sort(order);
+      const doneCol = by === 'status' && c.key === 'done';
+      const shown = doneCol && !allDone ? list.slice(0, 8) : list;
+      const mins = list.filter((t) => t.status !== 'done').reduce((a, t) => a + remainingMin(t), 0);
+      return html`<section key=${c.key} data-col=${c.key} class=${'bcol' + (drag && drag.over === c.key && drag.from !== c.key ? ' over' : '')} aria-label=${c.label}>
+        <div class="bcol-h">
+          <span class="spill" style=${{ '--c': c.color || color || 'var(--ink-3)' }}>${c.label}</span>
+          <span class="muted mono">${list.length}${mins ? ' · ' + fmtDur(mins) : ''}</span>
+        </div>
+        <div class="bcol-body">
+          ${shown.map((t) => card(t, c))}
+          ${doneCol && list.length > 8 ? html`<button class="btn sm ghost" onClick=${() => setAllDone(!allDone)}>${allDone ? 'Show fewer' : 'Show all ' + list.length}</button>` : null}
+          ${!list.length ? html`<div class="bcol-empty">${drag ? 'Drop here' : 'Nothing here'}</div>` : null}
+        </div>
+        ${adding === c.key
+          ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); add(c); }}><input autoFocus class="in" value=${nt} onInput=${(e) => setNt(e.target.value)} onBlur=${() => { if (!nt.trim()) setAdding(null); }} onKeyDown=${(e) => e.key === 'Escape' && setAdding(null)} placeholder="Task, e.g. “call venue fri 30m”" aria-label=${'New task in ' + c.label} /></form>`
+          : html`<button class="btn sm ghost stg-plus" onClick=${() => { setAdding(c.key); setNt(''); }}><${Icon} n="plus" />Add</button>`}
+      </section>`;
+    })}
+    ${onAddColumn ? onAddColumn() : null}
+    ${dragged ? html`<div class="bghost" style=${{ left: drag.x - drag.dx + 'px', top: drag.y - drag.dy + 'px', width: drag.w + 'px' }}><b>${dragged.title}</b></div>` : null}
+  </div>`;
+}
+
+function BoardBy({ by, set, opts }) {
+  return html`<div class="chips">${opts.map(([k, l]) => html`<button key=${k} class=${'chip' + (by === k ? ' on' : '')} onClick=${() => set(k)}>${l}</button>`)}</div>`;
+}
+
 function ProjectsView(ctx) {
   const { state, plan, now, A, draft, setDraft, runCommand, log } = ctx;
   const [open, setOpen] = useState(null);
@@ -1247,6 +1483,8 @@ function ProjectDetail(ctx) {
   const [sugg, setSugg] = useState(null);
   const [sugBusy, setSugBusy] = useState(false);
   const pickView = (v) => { setView2(v); try { localStorage.setItem('steward.pview', v); } catch (e) {} };
+  const [pby, setPby] = useState(() => { try { return localStorage.getItem('steward.pby') || 'stage'; } catch (e) { return 'stage'; } });
+  const pickPby = (v) => { setPby(v); try { localStorage.setItem('steward.pby', v); } catch (e) {} };
   if (!p) { back(); return null; }
   const ts = state.tasks.filter((t) => t.projectId === p.id);
   const notes = state.notes.filter((n) => n.projectId === p.id);
@@ -1327,7 +1565,7 @@ function ProjectDetail(ctx) {
         <div class="acts">${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start now</button>` : null}<button class="btn sm" onClick=${() => A.toggleDone(nextT.id)}><${Icon} n="check" />Done</button></div>
       </div>` : null}
     </header>
-    <div class="pd">
+    <div class=${'pd' + (view !== 'list' ? ' wide' : '')}>
       <section class="pd-main">
         <textarea class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project, and what does done look like?" aria-label="Project description"></textarea>
       </section>
@@ -1358,13 +1596,10 @@ function ProjectDetail(ctx) {
           ${sugg.map((x) => html`<label class="it" key=${x.id}><input type="checkbox" checked=${x.on} onChange=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, on: e.target.checked } : y))} /><input type="text" value=${x.text} onInput=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, text: e.target.value } : y))} aria-label="Suggested task" /></label>`)}
           <div class="acts">${sugg.length ? html`<button class="btn pri sm" onClick=${addSugg} disabled=${!sugg.some((x) => x.on)}>Add ${sugg.filter((x) => x.on).length} to ${current ? '“' + current + '”' : 'this project'}</button>` : null}<button class="btn sm ghost" onClick=${() => setSugg(null)}>Dismiss</button></div>
         </div>` : null}
-        ${view === 'board' ? html`<div class="board">${stages.map((s) => { const st = ts.filter((t) => (t.stage || '') === s); return html`<div key=${s} class="bcol">
-          <div class="bcol-h"><span class="spill" style=${{ '--c': color }}>${s || 'Tasks'}</span><span class="muted mono">${st.filter((t) => t.status === 'done').length}/${st.length}</span></div>
-          ${st.sort((a, b) => (a.status === 'done') - (b.status === 'done') || (info(a).first || 9e15) - (info(b).first || 9e15)).map((t) => html`<button key=${t.id} class=${'bcard' + (t.status === 'done' ? ' dn' : '')} onClick=${() => setDrawer({ type: 'task', id: t.id })}>
-            <b>${t.title}</b><span class="muted mono">${fmtDur(t.duration || 30)}${t.status === 'doing' ? ' · in progress' : ''}${t.status !== 'done' && info(t).first ? ' · ' + fmtD(info(t).first).slice(0, 10) : ''}</span>
-            ${t.priority === 'asap' || t.priority === 'high' || t.hard || (t.labels || []).length ? html`<span class="bcard-tags">${t.priority === 'asap' || t.priority === 'high' ? html`<span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>` : null}${t.hard ? html`<span class="lbl-pill">hard</span>` : null}${(t.labels || []).map((l) => html`<span class="lbl-pill">${l}</span>`)}</span>` : null}
-          </button>`)}
-        </div>`; })}</div>`
+        ${view === 'board' ? html`<div class="kb-bar"><span class="muted" style=${{ fontSize: '12px' }}>Columns</span><${BoardBy} by=${pby} set=${pickPby} opts=${[['stage', 'Stage'], ['status', 'Status'], ['priority', 'Priority']]} /></div>
+        <${Kanban} ...${ctx} by=${pby} ts=${ts} p=${p} color=${color} onAddColumn=${pby === 'stage' ? () => html`<div class="bcol bcol-new">${newStage !== null
+          ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); addStage(); }}><input autoFocus class="in" value=${newStage} onInput=${(e) => setNewStage(e.target.value)} onBlur=${() => { if (!newStage.trim()) setNewStage(null); }} placeholder="Stage name" aria-label="New stage" /></form>`
+          : html`<button class="btn sm ghost stg-plus" onClick=${() => setNewStage('')}><${Icon} n="plus" />Add stage</button>`}</div>` : null} />`
         : view === 'timeline' ? html`<div class="gantt" style=${{ '--c': color }}>
           <div class="g-axis"><span>${fmtD(g0).slice(4)}</span><span>${fmtD(g1).slice(4)}</span></div>
           <div class="g-today" style=${{ left: (38 + gp(now) * 0.62) + '%' }}></div>
