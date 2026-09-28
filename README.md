@@ -12,6 +12,7 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with a
 - **Focus timer:** start a timer on any task. The time you track counts against its estimate and teaches Steward how long things really take.
 - **Daily plan, wrap-up and weekly review:** these cards show on Today in the morning, at the end of the day, and at the end of the week. Steward can talk the plan through with you and write your weekly review, which is saved to Notes.
 - **Steward can make changes:** ask in chat ("move my admin tasks to Friday"). Steward lists the changes, and nothing happens until you press Apply. Undo works as usual.
+- **Meeting recorder:** Notes → **Record meeting**, or transcribe an audio or video file. Speech is transcribed on your device with Whisper, and the audio never leaves it. Steward then writes a summary, decisions, action items and open questions, and offers the actions as tasks.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
 ## Your own AI server on Hugging Face (recommended)
@@ -27,6 +28,7 @@ See `space/README.md` for the Space's settings. To add documents, upload `.txt`,
 | `index.html` | The planner app (React + htm, no build step) |
 | `kin-engine.js` | In-browser inference engine from Kin Studio |
 | `assistant.js` | Assistant, memory, and pattern learning |
+| `recorder.js` | Meeting recording and on-device transcription |
 | `sync.js` | Sync and calendar links through your Space |
 | `tools/lock.mjs`, `tools/gate.html` | Build the password-locked site into `dist/` |
 
