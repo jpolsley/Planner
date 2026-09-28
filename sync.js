@@ -4,7 +4,7 @@
  * When two devices changed things at once, the lists are merged item by item: the newer edit wins,
  * and deletions are remembered (state.gone) so a deleted task doesn't come back. */
 const SYNC_META_KEY = 'steward.sync.v1';
-const SYNC_LISTS = ['tasks', 'projects', 'notes', 'events'];
+const SYNC_LISTS = ['tasks', 'projects', 'notes', 'events', 'playbooks', 'convos'];
 
 const stewardSync = {
   meta: kinLoad(SYNC_META_KEY, { rev: 0, hash: '', last: 0 }),
