@@ -350,6 +350,7 @@ select.ghostin{text-align-last:right}
 <script src="assistant.js"></script>
 <script src="sync.js"></script>
 <script src="recorder.js"></script>
+<script src="learning.js"></script>
 <script>
 /* ================= Steward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
@@ -1847,6 +1848,7 @@ function ProjectDetail(ctx) {
 
   return html`<div>
     <button class="btn sm ghost" onClick=${back} style=${{ marginBottom: '10px' }}><${Icon} n="left" />Projects</button>
+    <${PlaybookOffer} p=${p} state=${state} commit=${commit} setToast=${ctx.setToast} />
     <header class="phero" style=${{ '--c': color }}>
       <div class="ring" style=${{ '--p': pct }} aria-label=${pct + '% done'}><span>${pct}<small>%</small></span></div>
       <div class="phero-main">
@@ -1954,7 +1956,7 @@ function DraftReview(ctx) {
       });
       stageLast[s.name] = ids;
     });
-    commit((st) => ({ ...st, projects: [...st.projects, { status: 'active', ...(d.extra || {}), id: pid, name: d.name, deadline: d.target, created, goal: d.goal, stages: d.stages.map((s) => s.name) }], tasks: [...st.tasks, ...newTasks] }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
+    commit((st) => ({ ...st, projects: [...st.projects, { status: 'active', ...(d.extra || {}), id: pid, name: d.name, deadline: d.target, created, goal: d.goal, stages: d.stages.map((s) => s.name) }], tasks: [...st.tasks, ...newTasks], playbooks: d.usedPlaybook ? (st.playbooks || []).map((p) => (p.id === d.usedPlaybook ? { ...p, uses: (p.uses || 0) + 1 } : p)) : st.playbooks }), 'Created “' + d.name + '” with ' + newTasks.length + ' tasks — scheduled');
     setDraft(null);
   };
   const total = d.stages.reduce((a, s) => a + s.tasks.filter((t) => t.include).reduce((b, t) => b + t.duration, 0), 0);

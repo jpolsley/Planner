@@ -265,7 +265,11 @@ function plannerSnapshot(state, plan, now) {
 function kinSystem(state, plan, userText) {
   const facts = kinRecall(userText).map((m) => '- ' + m.text);
   const pats = learnedPatterns(state).map((p) => '- ' + p);
+  const past = typeof recallConvos === 'function' ? recallConvos(state, userText) : [];
+  const pb = typeof findPlaybook === 'function' ? findPlaybook(state, userText) : null;
   return KIN_BASE
+    + (past.length ? '\n\nFrom earlier conversations (use when relevant, mention the date):\n' + past.map((c) => '- ' + fmtD(c.at) + ', ' + c.topic + ': ' + c.points.join(' ')).join('\n') : '')
+    + (pb ? '\n\nThe user\'s playbook "' + pb.title + '" (their own lessons from a similar project):\n' + pb.body.slice(0, 1500) : '')
     + (facts.length ? '\n\nWhat you know about the user:\n' + facts.join('\n') : '')
     + (pats.length ? '\n\nPatterns noticed from their planner:\n' + pats.join('\n') : '')
     + '\n\nPlanner snapshot:\n' + plannerSnapshot(state, plan, Date.now());
@@ -405,10 +409,12 @@ async function kinDraftProject(goal, state) {
   await kinReady();
   const now = Date.now();
   const facts = kinRecall(goal, 8).map((m) => '- ' + m.text).join('\n');
-  const sys = 'You are a project planner. Break the goal into 3-6 stages in order, each with 2-6 concrete tasks a single person can do. '
+  const pb = typeof findPlaybook === 'function' ? findPlaybook(state, goal) : null;
+  const sys = 'You are a project planner.'
+    + (pb ? ' The user has a playbook from running a similar project before. Follow its stages, realistic durations and lessons unless the goal clearly differs.' : '') + ' ' + ' Break the goal into 3-6 stages in order, each with 2-6 concrete tasks a single person can do. '
     + 'Estimate each task in minutes (15-480). Reply with ONLY JSON: {"name":"short project name","target":"YYYY-MM-DD or null",'
     + '"stages":[{"name":"stage name","tasks":[{"title":"verb-first task","minutes":60}]}],"assumptions":["..."],"question":"one question that would improve the plan"}';
-  const user = 'Today is ' + new Date(now).toISOString().slice(0, 10) + ' (' + fmtD(now) + ').\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + 'Goal: ' + goal;
+  const user = 'Today is ' + new Date(now).toISOString().slice(0, 10) + ' (' + fmtD(now) + ').\n' + (facts ? 'About the user:\n' + facts + '\n' : '') + (pb ? 'Their playbook "' + pb.title + '":\n' + pb.body + '\n' : '') + 'Goal: ' + goal;
   const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 1100, temperature: 0.3 });
   const j = kinJSON(out);
   const stagesIn = (j.stages || []).filter((st) => st && st.name && (st.tasks || []).length).slice(0, 8);
@@ -429,8 +435,9 @@ async function kinDraftProject(goal, state) {
   }));
   const assume = (j.assumptions || []).map(String).slice(0, 5);
   if (w.date == null && !aiDate) assume.unshift('No target date given, so I assumed ' + fmtD(target) + '.');
+  if (pb) assume.unshift('Based on your playbook “' + pb.title + '”.');
   assume.push('Drafted by Steward’s AI. Deadlines are spread by effort; adjust anything before accepting.');
-  return { goal, name: String(j.name || goal).slice(0, 80), kind: 'AI plan', target, stages, assume, ask: j.question ? String(j.question) : null, dateGiven: w.date != null };
+  return { goal, name: String(j.name || goal).slice(0, 80), kind: 'AI plan', target, stages, assume, ask: j.question ? String(j.question) : null, dateGiven: w.date != null, usedPlaybook: pb ? pb.id : null };
 }
 async function kinExtractNote(note, state) {
   await kinReady();
@@ -451,7 +458,7 @@ async function kinExtractNote(note, state) {
 }
 
 function AssistantView(ctx) {
-  const { state, plan, runCommand, setToast, A } = ctx;
+  const { state, plan, runCommand, setToast, A, commit } = ctx;
   const [, force] = useState(0);
   const [tab, setTab] = useState('chat');
   const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: true, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
@@ -463,6 +470,23 @@ function AssistantView(ctx) {
 
   useEffect(() => { const f = () => force((n) => n + 1); kinAI.subs.add(f); kinMem.subs.add(f); return () => { kinAI.subs.delete(f); kinMem.subs.delete(f); }; }, []);
   useEffect(() => { kinSave(KIN_CHAT_KEY, msgs.filter((m) => !m.pending).slice(-60)); }, [msgs]);
+  /* Past conversations: summarize what hasn't been summarized, after a quiet spell, on leaving, or before clearing. */
+  const msgsRef = useRef(msgs); msgsRef.current = msgs;
+  const summarizing = useRef(false);
+  const remember = async () => {
+    const todo = msgsRef.current.filter((m) => !m.pending && !m.summarized && m.content);
+    if (summarizing.current || todo.filter((m) => m.role === 'user').length < 2 || !(typeof kinAIAvailable === 'function' && kinAIAvailable()) || prefs.learn === false) return;
+    summarizing.current = true;
+    try {
+      const c = await kinSummarizeChat(todo);
+      if (c) commit((s) => ({ ...s, convos: [c, ...(s.convos || [])].slice(0, 200) }));
+      const ids = new Set(todo.map((m) => m.id));
+      setMsgs((m) => m.map((x) => (ids.has(x.id) ? { ...x, summarized: true } : x)));
+      kinSave(KIN_CHAT_KEY, msgsRef.current.map((x) => (ids.has(x.id) ? { ...x, summarized: true } : x)).filter((m) => !m.pending).slice(-60));
+    } catch (e) {} finally { summarizing.current = false; }
+  };
+  useEffect(() => { const t = setTimeout(remember, 3 * 60000); return () => clearTimeout(t); }, [msgs]);
+  useEffect(() => () => { remember(); }, []);
   useEffect(() => { endRef.current && endRef.current.scrollIntoView({ block: 'end' }); }, [msgs, tab]);
   const setPrefs = (p) => setPrefsRaw((x) => { const n = { ...x, ...p }; kinSave(KIN_PREF_KEY, n); return n; });
 
@@ -586,14 +610,14 @@ function AssistantView(ctx) {
       </div>
       <div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         ${quick.map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
-        ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => { setMsgs([]); setAdded({}); }}>Clear chat</button>` : null}
+        ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); }}>Clear chat</button>` : null}
       </div>
       <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
         <${Icon} n="spark" cls="muted" />
         <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Steward, or tell it about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
         ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
       </form>
-    </section>` : html`<${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} />`}
+    </section>` : html`<div><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
   </div>`;
 }
 
