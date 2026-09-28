@@ -17,10 +17,10 @@ const stewardSync = {
     let res;
     try {
       res = await fetch(sp.url + '/v1/sync', { method, keepalive, cache: 'no-store', headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-    } catch (e) { throw new Error('Couldn’t reach your Space. It may be asleep or starting up.'); }
+    } catch (e) { throw new Error('Couldn’t reach your Steward server. Is the computer on and the server running?'); }
     let data = null; try { data = await res.json(); } catch (e) {}
-    if (res.status === 404) throw new Error('Your Space needs the newest app.py to sync.');
-    if (res.status === 401) throw new Error('The Steward key doesn’t match your Space.');
+    if (res.status === 404) throw new Error('Your server needs updating to sync.');
+    if (res.status === 401) throw new Error('The Steward key doesn’t match your server.');
     if (!res.ok && res.status !== 409) throw new Error((data && data.error) || 'Sync error ' + res.status);
     return { status: res.status, data };
   },
@@ -139,13 +139,13 @@ async function syncNow(getLocal, apply, opts = {}) {
 /* Reads one calendar link through the Space. Returns timed events (they block time) and all-day ones (shown as notes on the day). */
 async function fetchCalendar(cal, days = 28) {
   const sp = kinSpace();
-  if (!sp || !sp.url) throw new Error('Connect your Space first (Assistant → Your Space).');
+  if (!sp || !sp.url) throw new Error('Connect your Steward server first (Assistant).');
   let res;
   try {
     res = await fetch(sp.url + '/v1/calendar', { method: 'POST', headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ url: cal.url, days }) });
-  } catch (e) { throw new Error('Couldn’t reach your Space.'); }
+  } catch (e) { throw new Error('Couldn’t reach your Steward server.'); }
   let data = {}; try { data = await res.json(); } catch (e) {}
-  if (res.status === 404) throw new Error('Your Space needs the newest app.py to read calendars.');
+  if (res.status === 404) throw new Error('Your server needs updating to read calendars.');
   if (!res.ok) throw new Error(data.error || 'Calendar error ' + res.status);
   const ms = (v) => (typeof v === 'number' ? v : new Date(v).getTime());
   const timed = [], allday = [];

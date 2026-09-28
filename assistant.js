@@ -22,6 +22,10 @@ const kinCloudAvailable = () => { const sp = kinSpace(); return !!(sp && sp.url 
 /* Accepts "user/space", huggingface.co/spaces/user/space, or the direct *.hf.space address. */
 function kinSpaceUrl(input) {
   const t = String(input).trim().replace(/\/+$/, '');
+  // Your own Steward server: http://localhost:8787, http://127.0.0.1:8787, or an https address (e.g. Tailscale Serve).
+  const own = t.match(/^(https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?|https:\/\/[a-z0-9.-]+(?::\d+)?)$/i);
+  if (own && !/huggingface\.co$/i.test(own[1])) return own[1].toLowerCase();
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(t)) return 'http://' + t.toLowerCase();
   if (/^https:\/\/[a-z0-9-]+\.hf\.space$/i.test(t)) return t.toLowerCase();
   const m = t.match(/^(?:https?:\/\/)?(?:huggingface\.co\/spaces\/)?([\w.-]+)\/([\w.-]+)$/i);
   return m ? 'https://' + (m[1] + '-' + m[2]).toLowerCase().replace(/[._]/g, '-') + '.hf.space' : null;
@@ -164,7 +168,7 @@ const kinAI = {
       try {
         if (this.device === 'cloud') {
           try { return await kinCloudChat({ messages, maxTokens, temperature, onChunk, docs }); }
-          catch (e) { if (e.name === 'AbortError' || e.partial) throw e; throw new Error('Your Space: ' + e.message); }
+          catch (e) { if (e.name === 'AbortError' || e.partial) throw e; throw new Error('Your Steward server: ' + e.message); }
         }
         return await local();
       } finally { this.set({ generating: false }); }
@@ -196,12 +200,12 @@ async function kinCloudChat({ messages, maxTokens, temperature, onChunk, docs = 
       headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, max_tokens: maxTokens, temperature, use_docs: docs }),
     });
-  } catch (e) { kinAI.abort = null; if (e.name === 'AbortError') throw e; throw new Error('couldn’t reach your Space. It may be asleep or still starting'); }
+  } catch (e) { kinAI.abort = null; if (e.name === 'AbortError') throw e; throw new Error('couldn’t reach it. Is the computer on and the server running?'); }
   if (!res.ok) {
     kinAI.abort = null;
     let detail = ''; try { detail = (await res.json()).error || ''; } catch (e) {}
-    throw new Error(res.status === 401 && /Steward key/.test(detail) ? 'the Steward key doesn’t match the Space'
-      : res.status === 401 ? 'the Space’s HF_TOKEN was rejected. Check its permissions'
+    throw new Error(res.status === 401 && /Steward key/.test(detail) ? 'the Steward key doesn’t match the server'
+      : res.status === 401 ? 'the model provider rejected the request'
       : res.status === 402 ? 'the free monthly allowance is used up'
       : res.status === 500 && detail ? detail
       : 'error ' + res.status + (detail ? ': ' + detail.slice(0, 120) : ''));
@@ -496,7 +500,7 @@ function AssistantView(ctx) {
   const send = async (text) => {
     text = (text || input).trim();
     if (!text || busy) return;
-    if (!ready && !prefs.onDevice && !kinCloudAvailable()) { setToast({ text: 'Connect your Space above first, or turn on Private mode', id: uid() }); return; }
+    if (!ready && !prefs.onDevice && !kinCloudAvailable()) { setToast({ text: 'Connect your Steward server above first, or turn on Private mode', id: uid() }); return; }
     if (!ready) {
       // Keep the message and send it as soon as the model is ready.
       setPending(text); setInput('');
@@ -544,7 +548,7 @@ function AssistantView(ctx) {
   const [checking, setChecking] = useState(false);
   const connect = async () => {
     const url = kinSpaceUrl(spUrl);
-    if (!url) { setToast({ text: 'Enter your Space like “yourname/steward”', id: uid() }); return; }
+    if (!url) { setToast({ text: 'Enter your server’s address, like http://localhost:8787', id: uid() }); return; }
     setChecking(true);
     try {
       const res = await fetch(url + '/health', { cache: 'no-store' });
@@ -552,19 +556,19 @@ function AssistantView(ctx) {
       let info;
       try { info = JSON.parse(raw); }
       catch (e) { setToast({ text: 'Hugging Face replied (' + res.status + '): ' + raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220), id: uid() }); return; }
-      if (!info.configured) { setToast({ text: 'Found your Space, but its HF_TOKEN or STEWARD_KEY secret is missing', id: uid() }); return; }
+      if (!info.configured) { setToast({ text: 'Found the server, but its STEWARD_KEY isn’t set yet (see steward.env)', id: uid() }); return; }
       // An empty chat is rejected with 401 for a wrong key and 400 for a right one, without using any credits.
       const probe = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + spKey.trim(), 'Content-Type': 'application/json' }, body: '{"messages":[]}' });
-      if (probe.status === 401) { setToast({ text: 'That Steward key doesn’t match the one in your Space', id: uid() }); return; }
+      if (probe.status === 401) { setToast({ text: 'That Steward key doesn’t match the one on your server', id: uid() }); return; }
       const idm = spUrl.trim().match(/([\w.-]+)\/([\w.-]+)\/?$/);
       kinSave(KIN_SPACE_KEY, { url, key: spKey.trim(), docs: info.documents || 0, id: idm ? idm[1] + '/' + idm[2] : null }); dispatchEvent(new Event('steward-space'));
       setSpUrl(''); setSpKey(''); restart();
-      setToast({ text: 'Connected to your Space' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
+      setToast({ text: 'Connected to your Steward server' + (info.documents ? ' · ' + info.documents + ' document' + (info.documents === 1 ? '' : 's') : ''), id: uid() });
     } catch (e) {
-      setToast({ text: 'Couldn’t reach that Space (' + (e.message || e) + '). If it’s asleep, wait 30 seconds and try again', id: uid() });
+      setToast({ text: 'Couldn’t reach that server (' + (e.message || e) + '). Check that it’s running and the address is right', id: uid() });
     } finally { setChecking(false); }
   };
-  const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} dispatchEvent(new Event('steward-space')); restart(); setToast({ text: 'Disconnected from your Space on this device', id: uid() }); };
+  const disconnect = () => { try { localStorage.removeItem(KIN_SPACE_KEY); } catch (e) {} dispatchEvent(new Event('steward-space')); restart(); setToast({ text: 'Disconnected from your Steward server on this device', id: uid() }); };
   const sp = kinSpace();
   // Spaces connected before the id was saved: "user-name.hf.space" → "user/name" (usernames rarely contain hyphens).
   if (sp && !sp.id) { const h = sp.url.replace(/^https:\/\//, '').replace(/\.hf\.space$/, ''); const i = h.indexOf('-'); if (i > 0) sp.id = h.slice(0, i) + '/' + h.slice(i + 1); }
@@ -579,7 +583,7 @@ function AssistantView(ctx) {
       ${prefs.onDevice ? html`
         <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <b>${m && m.key !== 'cloud' ? m.name : KIN_MODELS.main.name}</b>
-          <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Space' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
+          <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Steward server' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
           <span style=${{ flex: '1' }}></span>
           ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
           ${ready ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
@@ -592,7 +596,7 @@ function AssistantView(ctx) {
       : kinCloudAvailable() ? html`
         <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <b>${m && m.key === 'cloud' ? m.name : KIN_CLOUD_MODELS[0].name}</b>
-          <span class="muted small">Ready · via your Space${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}</span>
+          <span class="muted small">Ready · via your Steward server${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}</span>
           <span style=${{ flex: '1' }}></span>
           ${sp.id ? html`<a class="btn sm ghost" href=${'https://huggingface.co/spaces/' + sp.id + '/upload/main/docs'} target="_blank" rel="noopener">Add documents</a>` : null}
           <button class="btn sm ghost" onClick=${disconnect}>Disconnect</button>
@@ -601,10 +605,10 @@ function AssistantView(ctx) {
       : html`
       <div style=${{ padding: '12px 16px', borderTop: '1px solid var(--line)' }}>
         ${kinCloudAvailable()
-          ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to your Space (${sp.url.replace('https://', '')})${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}. Chats are answered by a large model on Hugging Face.</span><button class="btn sm ghost" onClick=${disconnect}>Disconnect</button></div>`
+          ? html`<div class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}><span class="muted">Connected to ${/hf\.space/.test(sp.url) ? 'your Hugging Face Space' : 'your Steward server'} (${sp.url.replace(/^https?:\/\//, '')})${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}.</span><button class="btn sm ghost" onClick=${disconnect}>Disconnect</button></div>`
           : html`<form style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }} onSubmit=${(e) => { e.preventDefault(); connect(); }}>
-              <span class="small" style=${{ flex: '1 1 100%' }}><b>Faster, smarter answers:</b> connect your Steward Space on Hugging Face. Enter the Space name and the Steward key you gave it.</span>
-              <input class="in" value=${spUrl} onInput=${(e) => setSpUrl(e.target.value)} placeholder="yourname/steward" aria-label="Space name" autocomplete="off" style=${{ flex: '1', minWidth: '180px' }} />
+              <span class="small" style=${{ flex: '1 1 100%' }}><b>Faster, smarter answers:</b> connect your Steward server. On the computer running it, use <b>http://localhost:8787</b>; on your phone, its Tailscale address. Enter the Steward key from steward.env.</span>
+              <input class="in" value=${spUrl} onInput=${(e) => setSpUrl(e.target.value)} placeholder="http://localhost:8787" aria-label="Server address" autocomplete="off" style=${{ flex: '1', minWidth: '180px' }} />
               <input class="in" type="password" value=${spKey} onInput=${(e) => setSpKey(e.target.value)} placeholder="Steward key" aria-label="Steward key" autocomplete="off" style=${{ flex: '1', minWidth: '160px' }} />
               <button class="btn pri sm" type="submit" disabled=${!spUrl.trim() || spKey.trim().length < 8 || checking}>${checking ? 'Checking…' : 'Connect'}</button>
             </form>`}
