@@ -14,6 +14,7 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with a
 - **Steward can make changes:** ask in chat ("move my admin tasks to Friday"). Steward lists the changes, and nothing happens until you press Apply. Undo works as usual.
 - **Meeting recorder:** Notes → **Record meeting**, or transcribe an audio or video file. Speech is transcribed on your device with Whisper, and the audio never leaves it. Steward then writes a summary, decisions, action items and open questions, and offers the actions as tasks.
 - **Learns as you go:** when you finish a project, Steward can write a *playbook* (stages, real durations, lessons), plan similar projects from it, and revise it each time it's reused. It also summarizes past chats so it can recall them later, and **Tidy memory** merges or removes outdated facts and asks about contradictions. See Assistant → What I know.
+- **Agent:** before answering, Steward can look things up: search tasks, check a project, find free time, read notes, recall earlier chats, check the calendar. Choose what it may change next to the chat box: *Ask every time*, *Auto for small changes*, or *Plan only*. In long chats, older messages are summarized instead of dropped. The patterns follow open-claude-code.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
 ## Your own AI server on Hugging Face (recommended)
@@ -31,6 +32,7 @@ See `space/README.md` for the Space's settings. To add documents, upload `.txt`,
 | `assistant.js` | Assistant, memory, and pattern learning |
 | `recorder.js` | Meeting recording and on-device transcription |
 | `learning.js` | Playbooks, memory tidying, and conversation recall |
+| `agent.js` | Tool loop, permission modes |
 | `sync.js` | Sync and calendar links through your Space |
 | `tools/lock.mjs`, `tools/gate.html` | Build the password-locked site into `dist/` |
 
