@@ -27,6 +27,7 @@ function kinSpaceUrl(input) {
   return m ? 'https://' + (m[1] + '-' + m[2]).toLowerCase().replace(/[._]/g, '-') + '.hf.space' : null;
 }
 const KIN_CHAT_KEY = 'kin.planner.chat.v1';
+const KIN_COMPACT_KEY = 'steward.chat.compact.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
 const KIN_BASE = 'You are Steward, a thoughtful personal assistant and thinking partner who lives inside the user\'s planner. You know the user and get to know them better over time. '
@@ -479,7 +480,7 @@ function AssistantView(ctx) {
     summarizing.current = true;
     try {
       const c = await kinSummarizeChat(todo);
-      if (c) commit((s) => ({ ...s, convos: [c, ...(s.convos || [])].slice(0, 200) }));
+      if (c) { commit((s) => ({ ...s, convos: [c, ...(s.convos || [])].slice(0, 200) })); const prev = kinLoad(KIN_COMPACT_KEY, null); kinSave(KIN_COMPACT_KEY, { points: [...(prev ? prev.points : []), ...c.points].slice(-12) }); }
       const ids = new Set(todo.map((m) => m.id));
       setMsgs((m) => m.map((x) => (ids.has(x.id) ? { ...x, summarized: true } : x)));
       kinSave(KIN_CHAT_KEY, msgsRef.current.map((x) => (ids.has(x.id) ? { ...x, summarized: true } : x)).filter((m) => !m.pending).slice(-60));
@@ -503,15 +504,30 @@ function AssistantView(ctx) {
       return;
     }
     const id = uid();
-    const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: m.content }));
-    const refs = snapshotRefs(state, Date.now()).map;
-    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text }, { id, role: 'assistant', content: '', pending: true, refs }]);
+    const mode = prefs.mode || 'ask';
+    // Context compacting: recent messages go in full; older ones as the running summary of this chat.
+    const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: String(m.content).replace(/```actions[\s\S]*?```/g, '[proposed changes]') }));
+    const compact = kinLoad(KIN_COMPACT_KEY, null);
+    const refs = { ...snapshotRefs(state, Date.now()).map };
+    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text, at: Date.now() }, { id, role: 'assistant', content: '', pending: true, refs }]);
     setInput('');
     let reply = '';
     try {
-      reply = await kinAI.ask({ messages: [{ role: 'system', content: kinSystem(state, plan, text) }, ...history], baseSystem: KIN_BASE, maxTokens: 700, onChunk: (c) => patch(id, (x) => ({ content: x.content + c })) });
-      patch(id, (x) => { const c = reply || x.content; const r = chatActions(c); return { content: c, pending: false, actions: r.actions }; });
+      const system = kinSystem(state, plan, text)
+        + (compact && compact.points.length ? '\n\nEarlier in this conversation:\n' + compact.points.map((p) => '- ' + p).join('\n') : '')
+        + (mode === 'plan' ? '\n\nPLAN-ONLY MODE: the user has turned off changes. Never include an actions block; describe what you would change in words.' : '');
+      const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
+      reply = r.text;
+      const acts = mode === 'plan' ? [] : chatActions(reply).actions;
+      patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs }));
+      if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
+        const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
+        const said = acts.map((a) => describeAction(a, refs, state)).filter(Boolean);
+        A.applyActions(list);
+        patch(id, () => ({ applied: 'Done automatically: ' + said.join('; ') + '. Press Undo to reverse.' }));
+      }
     } catch (e) { patch(id, (x) => ({ content: (e.partial || x.content) + '\n[Error: ' + e.message + ']', pending: false })); return; }
+    if (msgsRef.current.filter((m) => !m.summarized && m.role === 'user').length >= 6) remember();
     if (prefs.learn || /^\s*(please\s+)?remember\b/i.test(text)) {
       try { const learned = await kinLearnFrom(text, reply); if (learned.length) patch(id, () => ({ learned: learned.map((m) => m.text) })); } catch (e) {}
     }
@@ -601,6 +617,7 @@ function AssistantView(ctx) {
         ${!msgs.length ? html`<p class="muted small">Talk to Steward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
           <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (r.clean || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
+          ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '4px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
           ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
           ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
           ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
@@ -610,7 +627,9 @@ function AssistantView(ctx) {
       </div>
       <div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         ${quick.map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
-        ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); }}>Clear chat</button>` : null}
+        <span style=${{ flex: 1 }}></span>
+        <label class="small muted" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" style=${{ width: 'auto', padding: '4px 8px', fontSize: '12.5px' }} value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Steward may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
+        ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}
       </div>
       <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
         <${Icon} n="spark" cls="muted" />
