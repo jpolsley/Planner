@@ -2141,7 +2141,7 @@ function SyncPanel({ doSync, setView }) {
   const sp = kinSpace();
   const m = stewardSync.meta, on = stewardSync.on();
   const toggle = (v) => { kinSave(KIN_SPACE_KEY, { ...sp, sync: v }); stewardSync.set({}); if (v) doSync(); };
-  const line = !sp || !sp.url ? 'Connect your Space (Assistant → Your Space) to keep this planner in sync on your phone and computer.'
+  const line = !sp || !sp.url ? 'Connect your Steward server (Assistant) to keep this planner in sync on your phone and computer.'
     : !on ? 'Sync is off on this device.'
     : stewardSync.status === 'syncing' ? 'Syncing…'
     : stewardSync.status === 'error' ? stewardSync.error
@@ -2150,7 +2150,7 @@ function SyncPanel({ doSync, setView }) {
     ${sp && sp.url ? html`<label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${on} onChange=${(e) => toggle(e.target.checked)} />On</label>` : html`<button class="btn sm" onClick=${() => setView('assistant')}>Connect</button>`}</div>
     <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13.5px' }}>
       <div style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}><span class=${'dot ' + (stewardSync.status === 'error' ? 'bad' : on ? 'ok' : '')}></span><span style=${stewardSync.status === 'error' ? { color: 'var(--bad)' } : null}>${line}</span><span class="grow"></span>${on ? html`<button class="btn sm" disabled=${stewardSync.status === 'syncing'} onClick=${() => doSync()}>Sync now</button>` : null}</div>
-      ${sp && sp.url ? html`<p class="muted" style=${{ margin: 0 }}>Your tasks, projects, notes, settings and what Steward has learned are saved by your Space to a private Hugging Face dataset (<b>steward-data</b>). Connect the same Space on each device. ${stewardSync.status === 'error' && /save|open|403|401|permission|write/i.test(stewardSync.error) ? 'For saving, your Space’s HF_TOKEN needs write access. Edit the token on Hugging Face to allow write access to your repos, or add a second secret named HF_WRITE_TOKEN with a write token, then restart the Space.' : ''}</p>` : null}
+      ${sp && sp.url ? html`<p class="muted" style=${{ margin: 0 }}>Your tasks, projects, notes, settings and what Steward has learned are saved ${/hf\.space/.test(sp.url) ? 'by your Space to a private Hugging Face dataset' : 'in a file on the computer running your Steward server (with daily backups)'}. Connect the same server on each device. ${stewardSync.status === 'error' && /hf\.space/.test(sp.url) && /save|open|403|401|permission|write/i.test(stewardSync.error) ? 'For saving, your Space’s HF_TOKEN needs write access. Edit the token on Hugging Face to allow write access to your repos, or add a second secret named HF_WRITE_TOKEN with a write token, then restart the Space.' : ''}</p>` : null}
     </div></div>`;
 }
 
@@ -2180,7 +2180,7 @@ function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus,
   const setDay = (d, v) => A.setSettings({ hours: { ...s.hours, [d]: v } });
   const exportData = () => { const txt = JSON.stringify(state); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => setToast({ text: 'Backup copied — paste it into a note or file', id: uid() }), () => { setImp(txt); setToast({ text: 'Copy the backup from the box below', id: uid() }); }); };
   return html`<div style=${{ maxWidth: '720px' }}>
-    <header class="hdr"><div><div class="sub">${stewardSync.on() ? 'Synced through your Space' : 'Everything stays on this device'}</div><h1>Settings</h1></div></header>
+    <header class="hdr"><div><div class="sub">${stewardSync.on() ? 'Synced through your Steward server' : 'Everything stays on this device'}</div><h1>Settings</h1></div></header>
     <${SyncPanel} doSync=${doSync} setView=${setView} />
     <${CalendarsPanel} state=${state} A=${A} calStatus=${calStatus} refreshCalendars=${refreshCalendars} setToast=${setToast} />
     <div style=${{ height: '16px' }}></div>
@@ -2202,7 +2202,7 @@ function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus,
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>About the assistant</h2></div><div style=${{ padding: '14px 16px', fontSize: '13.5px', color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <p style=${{ margin: 0 }}>Everything runs on this device with no account and no API key. Quick capture, project drafts and pulling actions out of notes use Steward’s built-in language rules, so they're fast and predictable. The calendar engine is real scheduling code, not AI.</p>
-      <p style=${{ margin: 0 }}>Calendars come in through your Space as read-only links. Not included: booking links and meeting recording.</p>
+      <p style=${{ margin: 0 }}>Calendars come in through your Steward server as read-only links. Not included: booking links and meeting recording.</p>
     </div></div>
     <div class="panel" style=${{ marginTop: '16px' }}><div class="ph"><h2>Your data</h2></div><div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
