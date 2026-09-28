@@ -192,6 +192,11 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .wr-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.wr-stats>div{display:flex;flex-direction:column;padding:10px 12px;border:1px solid var(--line);border-radius:10px}.wr-stats b{font-size:20px}.wr-stats span{font-size:11.5px;color:var(--ink-3)}.wr-stats .bad b{color:var(--bad)}
 @media (max-width:860px){.wr-stats{grid-template-columns:1fr 1fr}}
 .actcard{margin-top:8px;padding:10px 12px;border:1px solid var(--line-2);border-radius:12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.rec{margin-bottom:16px}
+.recdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:2px}
+.recdot.big{width:14px;height:14px;animation:fpulse 1.4s ease-in-out infinite}.recdot.off{animation:none;opacity:.4}
+.meter{flex:1;max-width:220px;height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}.meter i{display:block;height:100%;background:var(--ink-2);transition:width .2s}
+.rec-live{font-size:13px;color:var(--ink-2);padding:10px 12px;border-radius:10px;background:var(--sunk);max-height:120px;overflow:hidden}
 .tmr{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 @media (max-width:860px){.focus{padding:8px 12px;gap:8px}.focus .fclock{font-size:15px}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--ground);padding:10px 12px 10px 16px;border-radius:12px;display:flex;gap:12px;align-items:center;z-index:60;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
@@ -344,6 +349,7 @@ select.ghostin{text-align-last:right}
 <script src="kin-engine.js"></script>
 <script src="assistant.js"></script>
 <script src="sync.js"></script>
+<script src="recorder.js"></script>
 <script>
 /* ================= Steward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
@@ -1973,12 +1979,97 @@ function DraftReview(ctx) {
 }
 
 /* ================= Notes ================= */
+/* ================= Meeting recorder ================= */
+function MeetingRecorder({ state, A, setToast, onDone, onClose }) {
+  const [phase, setPhase] = useState('idle'); // idle | rec | work
+  const [tab, setTab] = useState(false);
+  const [secs, setSecs] = useState(0);
+  const [lvl, setLvl] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [prog, setProg] = useState(null);
+  const [summary, setSummary] = useState('');
+  const [err, setErr] = useState('');
+  const rec = useRef(null), started = useRef(0), fileRef = useRef();
+  const canTab = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  useEffect(() => {
+    if (phase !== 'rec') return;
+    const i = setInterval(() => { if (rec.current) { setLvl(rec.current.level()); if (rec.current.state === 'recording') setSecs((x) => x + 0.25); } }, 250);
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    addEventListener('beforeunload', warn);
+    return () => { clearInterval(i); removeEventListener('beforeunload', warn); };
+  }, [phase]);
+  useEffect(() => () => { if (rec.current) rec.current.cancel(); }, []);
+  const clock = (t) => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+  const start = async () => {
+    setErr('');
+    try { rec.current = await startRecording({ tabAudio: tab }); started.current = Date.now(); setSecs(0); setPhase('rec'); }
+    catch (e) { setErr(e.name === 'NotAllowedError' ? 'Steward needs permission to use the microphone. Allow it in your browser’s site settings and try again.' : e.message || String(e)); }
+  };
+  const process = async (blob, when) => {
+    setPhase('work'); setErr(''); setProg({ stage: 'prep' });
+    let transcript = '';
+    try { transcript = await transcribeAudio(blob, setProg); }
+    catch (e) { setErr('Transcribing failed: ' + (e.message || e)); setPhase('idle'); return; }
+    if (!transcript.trim()) { setErr('No speech was found in that recording.'); setPhase('idle'); return; }
+    let notes = '';
+    if (typeof kinAIAvailable === 'function' && kinAIAvailable()) {
+      setProg({ stage: 'summary' });
+      try { let acc = ''; notes = await summarizeMeeting(transcript, state, (c) => { acc += c; setSummary(acc); }); }
+      catch (e) { setToast({ text: 'The summary failed (' + (e.message || e) + '). The transcript is saved.', id: uid() }); }
+    }
+    const note = { id: uid(), title: 'Meeting · ' + fmtD(when) + ' ' + fmtT(when), body: (notes ? notes.trim() + '\n\n' : '') + '## Transcript\n' + transcript, updated: Date.now(), projectId: null, meeting: true };
+    A.saveNote(note);
+    onDone(note, notes);
+  };
+  const stop = async () => { const blob = await rec.current.stop(); rec.current = null; process(blob, started.current); };
+  const cancel = () => { if (rec.current) rec.current.cancel(); rec.current = null; setPhase('idle'); };
+  const pct = prog && prog.stage === 'transcribe' && prog.total ? Math.round(prog.done / prog.total * 100) : prog && prog.stage === 'load' ? prog.pct : null;
+  return html`<div class="panel rec" aria-label="Record a meeting">
+    <div class="ph"><h2>${phase === 'rec' ? (paused ? 'Paused' : 'Recording') : phase === 'work' ? 'Making your notes' : 'Record a meeting'}</h2><span class="grow"></span>${phase !== 'rec' && phase !== 'work' ? html`<button class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button>` : null}</div>
+    <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      ${phase === 'idle' ? html`
+        <p class="muted small" style=${{ margin: 0 }}>Audio is transcribed on this device and never uploaded. Only the transcript text goes to Steward for the summary. Let everyone know you’re recording.</p>
+        ${canTab ? html`<label class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" checked=${tab} onChange=${(e) => setTab(e.target.checked)} /><span>Also capture a meeting in a browser tab (Teams, Zoom or Meet on the web). You’ll pick the tab; tick <b>Share tab audio</b>.</span></label>` : null}
+        <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button class="btn pri" onClick=${start}><span class="recdot"></span>Start recording</button>
+          <button class="btn" onClick=${() => fileRef.current.click()}>Transcribe a recording…</button>
+          <input ref=${fileRef} type="file" accept="audio/*,video/*" hidden onChange=${(e) => { const f = e.target.files[0]; e.target.value = ''; if (f) process(f, f.lastModified || Date.now()); }} />
+        </div>
+        <p class="muted small" style=${{ margin: 0 }}>The first time, Steward downloads a speech model (about 80 MB). Transcribing takes a few minutes per half hour of audio, faster on a computer than a phone.</p>` : null}
+      ${phase === 'rec' ? html`
+        <div style=${{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span class=${'recdot big' + (paused ? ' off' : '')}></span>
+          <span class="mono" style=${{ fontSize: '28px', fontWeight: 600 }}>${clock(secs)}</span>
+          <span class="meter"><i style=${{ width: Math.min(100, lvl * 180) + '%' }}></i></span>
+        </div>
+        <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button class="btn pri" onClick=${stop}><${Icon} n="check" />Stop and make notes</button>
+          <button class="btn" onClick=${() => { if (paused) rec.current.resume(); else rec.current.pause(); setPaused(!paused); }}>${paused ? 'Resume' : 'Pause'}</button>
+          <button class="btn ghost danger" onClick=${cancel}>Discard</button>
+        </div>
+        <p class="muted small" style=${{ margin: 0 }}>Keep this tab open while recording.</p>` : null}
+      ${phase === 'work' ? html`
+        <div class="small">${!prog || prog.stage === 'prep' ? 'Preparing the audio…' : prog.stage === 'load' ? 'Downloading the speech model… ' + (pct || 0) + '%' : prog.stage === 'transcribe' ? 'Transcribing… ' + clock(prog.done) + ' of ' + clock(prog.total) : 'Steward is writing the summary…'}</div>
+        ${pct != null ? html`<div class="bar" style=${{ margin: 0 }}><i style=${{ width: pct + '%' }}></i></div>` : null}
+        ${prog && prog.stage === 'transcribe' && prog.text ? html`<div class="rec-live">${prog.text.slice(-400)}</div>` : null}
+        ${summary ? html`<div class="rit-ai"><${AIBody} text=${summary} /></div>` : null}` : null}
+      ${err ? html`<div class="small" style=${{ color: 'var(--bad)' }}>${err}</div>` : null}
+    </div>
+  </div>`;
+}
+
 function NotesView(ctx) {
   const { state, A, now, commit, setToast } = ctx;
   const [sel, setSel] = useState(state.notes[0] ? state.notes[0].id : null);
   const [review, setReview] = useState(null);
   const [reading, setReading] = useState(false);
+  const [recOpen, setRecOpen] = useState(false);
   const n = state.notes.find((x) => x.id === sel);
+  const recorded = async (note, notes) => {
+    setRecOpen(false); setSel(note.id);
+    setToast({ text: 'Meeting notes saved', id: uid() });
+    if (notes) { setReading(true); try { setReview(await extractNote({ ...note, body: notes }, state, setToast)); } finally { setReading(false); } }
+  };
   const newNote = () => { const x = { id: uid(), title: 'Untitled note', body: '', updated: Date.now(), projectId: null }; A.saveNote(x); setSel(x.id); setReview(null); };
   const upd = (patch) => A.saveNote({ ...n, ...patch, updated: Date.now() });
   const accept = () => {
@@ -1990,7 +2081,8 @@ function NotesView(ctx) {
   };
   const lines = n ? n.body.split('\n') : [];
   return html`<div>
-    <header class="hdr"><div><div class="sub">${state.notes.length} notes</div><h1>Notes</h1></div><span class="grow"></span><button class="btn sm pri" onClick=${newNote}><${Icon} n="plus" />New note</button></header>
+    <header class="hdr"><div><div class="sub">${state.notes.length} notes</div><h1>Notes</h1></div><span class="grow"></span><button class="btn sm" onClick=${() => setRecOpen(true)}><span class="recdot"></span>Record meeting</button><button class="btn sm pri" onClick=${newNote}><${Icon} n="plus" />New note</button></header>
+    ${recOpen ? html`<${MeetingRecorder} state=${state} A=${A} setToast=${setToast} onDone=${recorded} onClose=${() => setRecOpen(false)} />` : null}
     <div class="notes">
       <div class="panel rows nlist">${state.notes.length ? state.notes.slice().sort((a, b) => b.updated - a.updated).map((x) => html`<div key=${x.id} class="row click" style=${x.id === sel ? { background: 'var(--accent-soft)' } : null} onClick=${() => { setSel(x.id); setReview(null); }}><span></span><div class="t"><b>${x.title}</b><small>${relD(x.updated, now)}${x.projectId ? ' · ' + ((state.projects.find((p) => p.id === x.projectId) || {}).name || '') : ''}</small></div><span></span></div>`) : html`<div class="empty">No notes yet.</div>`}</div>
       ${n ? html`<div class="stack">
