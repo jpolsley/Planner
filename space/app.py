@@ -179,57 +179,89 @@ async def chat(request: Request):
     }
     headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
     client = httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15))
+    sse = lambda text: "data: " + json.dumps({"choices": [{"delta": {"content": text}}]}) + "\n\n"
 
-    # Find the first model that accepts the request, then stream its reply straight through.
-    last_error = "no models configured"
-    for model in MODELS:
-        req = client.build_request("POST", ROUTER, headers=headers, json={**payload, "model": model})
-        res = await client.send(req, stream=True)
+    async def open_model(model):
+        """Starts a streamed reply from one model. Returns (response, None) or (None, error)."""
+        msgs = messages
+        if "qwen3" in model.lower() and msgs[-1]["role"] == "user":  # Qwen3's own switch for "answer without thinking"
+            msgs = msgs[:-1] + [{**msgs[-1], "content": str(msgs[-1]["content"]) + " /no_think"}]
+        body_ = {**payload, "messages": msgs, "model": model}
+        res = await client.send(client.build_request("POST", ROUTER, headers=headers, json=body_), stream=True)
         if res.status_code in (400, 422):  # a provider that rejects the thinking switch: ask again without it
             await res.aclose()
-            plain = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
-            res = await client.send(client.build_request("POST", ROUTER, headers=headers, json={**plain, "model": model}), stream=True)
+            body_.pop("chat_template_kwargs", None)
+            res = await client.send(client.build_request("POST", ROUTER, headers=headers, json=body_), stream=True)
         if res.status_code == 200:
-            async def relay(res=res):
-                # Newer Qwen models may think out loud (<think>… or a separate reasoning field); Steward only shows the answer.
-                flt, buf = ThinkFilter(), ""
-                try:
-                    async for chunk in res.aiter_text():
-                        buf += chunk
-                        lines = buf.split("\n")
-                        buf = lines.pop()
-                        for line in lines:
-                            data = line[5:].strip() if line.startswith("data:") else ""
-                            if not data:
-                                continue
-                            if data == "[DONE]":
-                                if flt.buf and not flt.inside:
-                                    yield "data: " + json.dumps({"choices": [{"delta": {"content": flt.buf}}]}) + "\n\n"
-                                    flt.buf = ""
-                                yield "data: [DONE]\n\n"
-                                continue
-                            try:
-                                j = json.loads(data)
-                                delta = (j.get("choices") or [{}])[0].get("delta", {})
-                                text = flt.feed(delta.get("content") or "")
-                                if not text:
-                                    continue
-                                yield "data: " + json.dumps({"choices": [{"delta": {"content": text}}]}) + "\n\n"
-                            except Exception:
-                                continue
-                finally:
-                    await res.aclose()
-                    await client.aclose()
-            return StreamingResponse(relay(), media_type="text/event-stream", headers={"X-Steward-Model": model})
+            return res, None
         detail = (await res.aread()).decode(errors="ignore")[:300]
         await res.aclose()
-        last_error = f"{model}: {res.status_code} {detail}"
-        print("Model failed:", last_error)
-        if res.status_code in (401, 402):  # bad token or credits used up: other models won't help
+        return None, (res.status_code, f"{model}: {res.status_code} {detail}")
+
+    async def visible_text(res):
+        """The answer only: <think> blocks and reasoning-only chunks are dropped."""
+        flt, buf = ThinkFilter(), ""
+        try:
+            async for chunk in res.aiter_text():
+                buf += chunk
+                lines = buf.split("\n")
+                buf = lines.pop()
+                for line in lines:
+                    data = line[5:].strip() if line.startswith("data:") else ""
+                    if not data or data == "[DONE]":
+                        continue
+                    try:
+                        delta = (json.loads(data).get("choices") or [{}])[0].get("delta", {})
+                    except Exception:
+                        continue
+                    text = flt.feed(delta.get("content") or "")
+                    if text:
+                        yield text
+            if flt.buf and not flt.inside:
+                yield flt.buf
+        finally:
+            await res.aclose()
+
+    # Find the first model that accepts the request.
+    last_error, first, start = "no models configured", None, 0
+    for n, model in enumerate(MODELS):
+        res, err = await open_model(model)
+        if res:
+            first, start = res, n
             break
-    await client.aclose()
-    status = 402 if " 402 " in last_error else 401 if " 401 " in last_error else 502
-    return JSONResponse({"error": last_error}, status_code=status)
+        last_error = err[1]
+        print("Model failed:", last_error)
+        if err[0] in (401, 402):  # bad token or credits used up: other models won't help
+            break
+    if not first:
+        await client.aclose()
+        status = 402 if " 402 " in last_error else 401 if " 401 " in last_error else 502
+        return JSONResponse({"error": last_error}, status_code=status)
+
+    async def relay():
+        # If a model finishes without any visible answer (e.g. it spent the reply thinking), ask the next one.
+        try:
+            res = first
+            for model in MODELS[start:]:
+                if res is None:
+                    res, err = await open_model(model)
+                    if not res:
+                        print("Model failed:", err[1])
+                        continue
+                got = False
+                async for text in visible_text(res):
+                    got = True
+                    yield sse(text)
+                res = None
+                if got:
+                    break
+                print("Empty answer from", model, "- trying the next model")
+            else:
+                yield sse("(No answer came back from the AI. Please try again in a moment.)")
+            yield "data: [DONE]\n\n"
+        finally:
+            await client.aclose()
+    return StreamingResponse(relay(), media_type="text/event-stream", headers={"X-Steward-Model": MODELS[start]})
 
 
 # ---------- sync: one private dataset file holds the planner, shared by every device ----------
@@ -343,7 +375,9 @@ EVENTS = {"buffer": [], "seen": set(), "flush": None, "error": ""}
 
 def _events_write(lines, month, stamp):
     from huggingface_hub import HfApi
-    HfApi(token=DATA_TOKEN).upload_file(path_or_fileobj=("\n".join(lines) + "\n").encode(), path_in_repo=f"events/{month}/{stamp}.jsonl",
+    api = HfApi(token=DATA_TOKEN)
+    api.create_repo(DATA_REPO, repo_type="dataset", private=True, exist_ok=True)
+    api.upload_file(path_or_fileobj=("\n".join(lines) + "\n").encode(), path_in_repo=f"events/{month}/{stamp}.jsonl",
                                         repo_id=DATA_REPO, repo_type="dataset", commit_message=f"Steward history {stamp}")
 
 
