@@ -63,7 +63,7 @@ async function kinTidyMemory() {
 /* ---------- 3. past conversations ---------- */
 async function kinSummarizeChat(msgs) {
   await kinReady();
-  const text = msgs.map((m) => (m.role === 'user' ? 'User: ' : 'Steward: ') + String(m.content).replace(/```actions[\s\S]*?```/g, '').slice(0, 1200)).join('\n').slice(-9000);
+  const text = msgs.map((m) => (m.role === 'user' ? 'User: ' : 'Diana: ') + String(m.content).replace(/```actions[\s\S]*?```/g, '').slice(0, 1200)).join('\n').slice(-9000);
   const sys = 'You summarize a conversation between a user and their planning assistant so it can be recalled months later.';
   const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: 'Conversation:\n' + text + '\n\nWrite: first line "TOPIC: <3-8 words>", then 2-5 bullets starting with "- " covering what was discussed, decided, or planned, with names and dates as stated. Skip small talk.' }], baseSystem: sys, maxTokens: 260, temperature: 0.2, docs: false });
   const topic = ((out.match(/^\s*TOPIC:\s*(.+)$/im) || [])[1] || 'Conversation').trim().slice(0, 80);
@@ -105,7 +105,7 @@ function LearningPanels({ state, commit, setToast }) {
   return html`<div>
     <section class="panel" style=${{ marginBottom: '16px' }}>
       <div class="ph"><h2>Tidy memory</h2><span class="grow"></span>${aiOn ? html`<button class="btn sm" disabled=${busy || kinMem.items.length < 4} onClick=${runTidy}><${Icon} n="spark" />${busy ? 'Reviewing…' : 'Tidy now'}</button>` : null}</div>
-      ${!tidy ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>${lastTidy ? 'Last tidied ' + relD(lastTidy, Date.now()).toLowerCase() + '. ' : ''}Steward merges repeated facts, drops outdated ones, and asks you when two facts disagree. Nothing changes until you apply it.${!lastTidy || Date.now() - lastTidy > 7 * 864e5 ? (kinMem.items.length >= 12 ? ' It’s a good time for a tidy.' : '') : ''}</p>` : html`<div style=${{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
+      ${!tidy ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>${lastTidy ? 'Last tidied ' + relD(lastTidy, Date.now()).toLowerCase() + '. ' : ''}Diana merges repeated facts, drops outdated ones, and asks you when two facts disagree. Nothing changes until you apply it.${!lastTidy || Date.now() - lastTidy > 7 * 864e5 ? (kinMem.items.length >= 12 ? ' It’s a good time for a tidy.' : '') : ''}</p>` : html`<div style=${{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
         ${tidy.merge.map((m, i) => html`<div key=${'m' + i}><b>Combine</b> ${m.ids.map(memText).map((t) => '“' + t + '”').join(' + ')}<br/><span class="muted">→ ${m.text}</span></div>`)}
         ${tidy.remove.map((r, i) => html`<div key=${'r' + i}><b>Forget</b> “${memText(r.id)}” <span class="muted">· ${r.why}</span></div>`)}
         ${tidy.ask.map((q, i) => html`<div key=${'q' + i}><b>${q.question}</b><div class="muted small">${q.ids.map(memText).join(' / ')}</div><input class="in" style=${{ marginTop: '4px' }} value=${answers[i] || ''} onInput=${(e) => setAnswers({ ...answers, [i]: e.target.value })} placeholder="Your answer replaces those facts (optional)" /></div>`)}
@@ -115,7 +115,7 @@ function LearningPanels({ state, commit, setToast }) {
 
     <section class="panel" style=${{ marginBottom: '16px' }}>
       <div class="ph"><h2>Playbooks · ${pbs.length}</h2></div>
-      ${!pbs.length ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>When you finish a project, Steward offers to write down how it went: the stages, real durations, and what to do differently. Similar projects are then planned from it, and it improves each time.</p>` : null}
+      ${!pbs.length ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>When you finish a project, Diana offers to write down how it went: the stages, real durations, and what to do differently. Similar projects are then planned from it, and it improves each time.</p>` : null}
       ${pbs.map((p) => html`<div key=${p.id} style=${{ borderTop: '1px solid var(--line)', padding: '10px 16px' }}>
         <div style=${{ display: 'flex', gap: '8px', alignItems: 'center' }}><button class="tt" style=${{ flex: 1, textAlign: 'left', background: 'none', border: 0, padding: 0, color: 'var(--ink)' }} onClick=${() => setOpen(open === p.id ? null : p.id)}><b>${p.title}</b> <span class="muted small">· from ${(p.from || []).join(', ')} · used ${p.uses || 0}×</span></button>
           <button class="btn sm ghost" onClick=${() => setOpen(open === p.id ? null : p.id)}>${open === p.id ? 'Close' : 'Open'}</button>
@@ -126,7 +126,7 @@ function LearningPanels({ state, commit, setToast }) {
 
     <section class="panel" style=${{ marginBottom: '16px' }}>
       <div class="ph"><h2>Past conversations · ${convos.length}</h2></div>
-      ${!convos.length ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>After a chat, Steward keeps a short summary so it can recall it later, like “what did we decide about the volunteer schedule?”</p>` : null}
+      ${!convos.length ? html`<p class="muted small" style=${{ padding: '0 16px 14px', margin: 0 }}>After a chat, Diana keeps a short summary so it can recall it later, like “what did we decide about the volunteer schedule?”</p>` : null}
       ${convos.slice(0, 30).map((c) => html`<div key=${c.id} style=${{ borderTop: '1px solid var(--line)', padding: '10px 16px', display: 'flex', gap: '8px' }}>
         <div style=${{ flex: 1 }}><b>${c.topic}</b> <span class="muted small">· ${fmtD(c.at)}</span>${c.points.map((x, i) => html`<div key=${i} class="small muted">• ${x}</div>`)}</div>
         <button class="btn sm ghost" onClick=${() => commit((s) => ({ ...s, convos: (s.convos || []).filter((x) => x.id !== c.id) }))} aria-label="Forget this conversation">Forget</button>
@@ -149,6 +149,6 @@ function PlaybookOffer({ p, state, commit, setToast }) {
     } catch (e) { setToast({ text: 'Couldn’t write the playbook: ' + (e.message || e), id: uid() }); }
     finally { setBusy(false); }
   };
-  return html`<div class="rit" style=${{ marginBottom: '14px' }}><div class="rit-h"><span class="eyebrow">Project finished</span><b>Save what you learned as a playbook?</b><span class="muted small">Steward writes down the stages, real durations and what to do differently, and plans similar projects from it.</span></div>
+  return html`<div class="rit" style=${{ marginBottom: '14px' }}><div class="rit-h"><span class="eyebrow">Project finished</span><b>Save what you learned as a playbook?</b><span class="muted small">Diana writes down the stages, real durations and what to do differently, and plans similar projects from it.</span></div>
     <div class="acts"><button class="btn sm pri" disabled=${busy} onClick=${write}><${Icon} n="spark" />${busy ? 'Writing…' : 'Write playbook'}</button><button class="btn sm ghost" onClick=${() => commit((s) => ({ ...s, projects: s.projects.map((x) => (x.id === p.id ? { ...x, playbook: 'skipped' } : x)) }))}>No thanks</button></div></div>`;
 }

@@ -947,7 +947,7 @@ function App() {
 
   const ctx = { state, plan, computed, now, A, commit, setDrawer, setView, alerts, runCommand, log, draft, setDraft, pendingMoves, applyPlan, setSearch, setToast };
   const openTasks = state.tasks.filter((t) => t.status !== 'done').length;
-  const NAV = [['today', 'Today', 'today'], ['calendar', 'Calendar', 'cal'], ['tasks', 'Tasks', 'tasks', openTasks], ['projects', 'Projects', 'proj', state.projects.filter((p) => p.status !== 'done').length], ['notes', 'Notes', 'notes', state.notes.length], ['assistant', 'Assistant', 'spark']];
+  const NAV = [['today', 'Today', 'today'], ['calendar', 'Calendar', 'cal'], ['tasks', 'Tasks', 'tasks', openTasks], ['projects', 'Projects', 'proj', state.projects.filter((p) => p.status !== 'done').length], ['notes', 'Notes', 'notes', state.notes.length], ['assistant', 'Diana', 'spark']];
   return html`<div class="app">
     <nav class="rail" aria-label="Main">
       <div class="brand"><i>S</i>Steward</div>
@@ -1051,7 +1051,7 @@ function DayRitual(ctx) {
       ${ai.err ? html`<div class="bad small">${ai.err}</div>` : null}
       <div class="acts">
         <button class="btn sm pri" onClick=${() => { mark('plan'); setOpen(null); }}>Looks good</button>
-        ${aiReady() ? html`<button class="btn sm" disabled=${ai.busy} onClick=${ask}><${Icon} n="spark" />${ai.text ? 'Ask again' : 'Talk it through with Steward'}</button>` : null}
+        ${aiReady() ? html`<button class="btn sm" disabled=${ai.busy} onClick=${ask}><${Icon} n="spark" />${ai.text ? 'Ask again' : 'Talk it through with Diana'}</button>` : null}
         ${over && st.tasks.length ? html`<button class="btn sm ghost" onClick=${() => { const low = st.tasks.slice().sort((a, b) => PRI[b.priority] - PRI[a.priority])[0]; A.updTask(low.id, { startDate: addDays(d0, 1) }, 'Moved “' + low.title + '” to tomorrow'); }}>Move the lowest priority to tomorrow</button>` : null}
       </div>
     </div>`;
@@ -1075,7 +1075,7 @@ function DayRitual(ctx) {
       <button class="tt" onClick=${() => setDrawer({ type: 'task', id: t.id })}>${t.title}</button>
       <span class="rit-acts"><button class="btn sm" onClick=${() => A.toggleDone(t.id)}><${Icon} n="check" />Done</button><button class="btn sm ghost" onClick=${() => A.updTask(t.id, { startDate: addDays(d0, 1) }, 'Moved to tomorrow')}>Tomorrow</button><button class="btn sm ghost" onClick=${() => A.updTask(t.id, (x) => ({ duration: (x.duration || 30) + 30 }), 'Added 30m')}>+30m</button></span>
     </div>`)}</div>` : html`<div class="muted small">Everything planned for today is done. Nice work.</div>`}
-    <textarea class="in" rows="2" value=${note} onInput=${(e) => setNote(e.target.value)} placeholder="How did today go? What got in the way? (optional, saved to your Daily log and helps Steward learn)" aria-label="How did today go"></textarea>
+    <textarea class="in" rows="2" value=${note} onInput=${(e) => setNote(e.target.value)} placeholder="How did today go? What got in the way? (optional, saved to your Daily log and helps Diana learn)" aria-label="How did today go"></textarea>
     <div class="acts"><button class="btn sm pri" onClick=${finish}>Finish the day</button>${open ? html`<button class="btn sm ghost" onClick=${() => setOpen(null)}>Close</button>` : html`<button class="btn sm ghost" onClick=${() => mark('wrap')}>Not now</button>`}</div>
   </div>`;
 }
@@ -1109,7 +1109,7 @@ function WeeklyReview({ state, plan, now, A, onClose, onSaved, setDrawer }) {
   ].filter(Boolean).join('\n');
   const write = () => ai.run(kinSystem(state, plan, 'weekly review of my work'), 'Write my weekly review from these facts:\n' + facts + '\n\nUse short sections with headings: "Wins", "What slipped and why it might have", "Next week", and end with one or two reflection questions for me. Connect it to what you know about my role and goals, and cite my documents if relevant. Keep it under 250 words.', { maxTokens: 700 });
   const save = () => {
-    const body = '## This week\n' + facts.split('\n').map((l) => '- ' + l).join('\n') + (ai.text ? '\n\n## Steward’s review\n' + ai.text : '');
+    const body = '## This week\n' + facts.split('\n').map((l) => '- ' + l).join('\n') + (ai.text ? '\n\n## Diana’s review\n' + ai.text : '');
     A.saveNote({ id: uid(), title: 'Weekly review · ' + range, body, updated: Date.now(), log: 'weekly' });
     if (ai.text && aiReady()) kinLearnFrom('My weekly review: ' + facts, '').catch(() => {});
     onSaved();
@@ -1121,7 +1121,7 @@ function WeeklyReview({ state, plan, now, A, onClose, onSaved, setDrawer }) {
       <div class="stats wr-stats">${stat(done.length, 'finished')}${stat(tracked >= 1 ? fmtDur(Math.round(tracked)) : '—', 'tracked')}${stat(slipped.length, 'slipped', slipped.length ? 'bad' : '')}${stat(cap ? Math.round((nextFocus + nextMeetMin) / cap * 100) + '%' : '—', 'next week booked', cap && nextFocus + nextMeetMin > cap ? 'bad' : '')}</div>
       ${slipped.length ? html`<div><div class="grp">Slipped</div><div class="panel rows">${slipped.map((t) => html`<${TaskRow} key=${t.id} t=${t} state=${state} plan=${plan} now=${now} A=${A} setDrawer=${setDrawer} />`)}</div></div>` : null}
       ${byProj.length ? html`<div><div class="grp">Projects</div><div class="panel rows">${byProj.map((x) => html`<div key=${x.p.id} class="row"><span class="pdot" style=${{ background: pColor(x.p.color), marginRight: 0 }}></span><div class="t"><b>${x.p.name}</b><small>${x.doneWeek} done this week · ${x.open} open</small></div>${x.risk ? html`<span class="pill bad">At risk</span>` : html`<span class="pill ok">On track</span>`}</div>`)}</div></div>` : null}
-      ${ai.text || ai.busy ? html`<div class="rit-ai">${ai.text ? html`<${AIBody} text=${ai.text} />` : html`<span class="muted">Steward is writing your review…</span>`}</div>` : null}
+      ${ai.text || ai.busy ? html`<div class="rit-ai">${ai.text ? html`<${AIBody} text=${ai.text} />` : html`<span class="muted">Diana is writing your review…</span>`}</div>` : null}
       ${ai.err ? html`<div class="bad small">${ai.err}</div>` : null}
       <div class="acts" style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         ${aiReady() ? html`<button class="btn sm" disabled=${ai.busy} onClick=${write}><${Icon} n="spark" />${ai.text ? 'Rewrite' : 'Write my review'}</button>` : null}
@@ -1197,7 +1197,7 @@ function CommandBar(ctx) {
       <textarea id="cmd" ref=${ref} rows="1" value=${v} onInput=${(e) => setV(e.target.value)}
         onKeyDown=${(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
         placeholder=${aiOn ? 'Brain dump what’s on your mind, or “show what’s urgent”' : 'Add a task: “call Sam fri 2pm”'}
-        aria-label="Tell Steward what to add, plan, or find" autocomplete="off"></textarea>
+        aria-label="Tell Diana what to add, plan, or find" autocomplete="off"></textarea>
       <span class="k">/</span>
       <button class="btn pri sm" type="submit" disabled=${busy}>${busy ? 'Thinking…' : 'Go'}</button>
     </form>
@@ -1439,7 +1439,7 @@ function TasksView(ctx) {
   </div>`;
 }
 
-/* Steps inside a task. Steward can draft them from the title and notes. */
+/* Steps inside a task. Diana can draft them from the title and notes. */
 function Checklist({ t, up, state, setToast }) {
   const [v, setV] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1763,7 +1763,7 @@ function NewProjectModal({ state, A, setDraft, setToast, onClose, onCreated }) {
       <div class="npm-main">
         <div class="npm-top"><span class="muted"><${Icon} n="proj" /> New project</span><span style=${{ flex: 1 }}></span><button type="button" class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button></div>
         <input class="title-in" autoFocus value=${v.name} onInput=${(e) => set({ name: e.target.value })} placeholder="Project name" aria-label="Project name" />
-        <textarea class="npm-desc" value=${v.desc} onInput=${(e) => set({ desc: e.target.value })} placeholder="Goals, what done looks like, anything Steward should know…" aria-label="Description"></textarea>
+        <textarea class="npm-desc" value=${v.desc} onInput=${(e) => set({ desc: e.target.value })} placeholder="Goals, what done looks like, anything Diana should know…" aria-label="Description"></textarea>
       </div>
       <aside class="npm-side">
         <${ProjectFields} v=${v} set=${set} />
@@ -2031,7 +2031,7 @@ function MeetingRecorder({ state, A, setToast, onDone, onClose }) {
     <div class="ph"><h2>${phase === 'rec' ? (paused ? 'Paused' : 'Recording') : phase === 'work' ? 'Making your notes' : 'Record a meeting'}</h2><span class="grow"></span>${phase !== 'rec' && phase !== 'work' ? html`<button class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button>` : null}</div>
     <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
       ${phase === 'idle' ? html`
-        <p class="muted small" style=${{ margin: 0 }}>Audio is transcribed on this device and never uploaded. Only the transcript text goes to Steward for the summary. Let everyone know you’re recording.</p>
+        <p class="muted small" style=${{ margin: 0 }}>Audio is transcribed on this device and never uploaded. Only the transcript text goes to Diana for the summary. Let everyone know you’re recording.</p>
         ${canTab ? html`<label class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" checked=${tab} onChange=${(e) => setTab(e.target.checked)} /><span>Also capture a meeting in a browser tab (Teams, Zoom or Meet on the web). You’ll pick the tab; tick <b>Share tab audio</b>.</span></label>` : null}
         <div style=${{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button class="btn pri" onClick=${start}><span class="recdot"></span>Start recording</button>
@@ -2052,7 +2052,7 @@ function MeetingRecorder({ state, A, setToast, onDone, onClose }) {
         </div>
         <p class="muted small" style=${{ margin: 0 }}>Keep this tab open while recording.</p>` : null}
       ${phase === 'work' ? html`
-        <div class="small">${!prog || prog.stage === 'prep' ? 'Preparing the audio…' : prog.stage === 'load' ? 'Downloading the speech model… ' + (pct || 0) + '%' : prog.stage === 'transcribe' ? 'Transcribing… ' + clock(prog.done) + ' of ' + clock(prog.total) : 'Steward is writing the summary…'}</div>
+        <div class="small">${!prog || prog.stage === 'prep' ? 'Preparing the audio…' : prog.stage === 'load' ? 'Downloading the speech model… ' + (pct || 0) + '%' : prog.stage === 'transcribe' ? 'Transcribing… ' + clock(prog.done) + ' of ' + clock(prog.total) : 'Diana is writing the summary…'}</div>
         ${pct != null ? html`<div class="bar" style=${{ margin: 0 }}><i style=${{ width: pct + '%' }}></i></div>` : null}
         ${prog && prog.stage === 'transcribe' && prog.text ? html`<div class="rec-live">${prog.text.slice(-400)}</div>` : null}
         ${summary ? html`<div class="rit-ai"><${AIBody} text=${summary} /></div>` : null}` : null}

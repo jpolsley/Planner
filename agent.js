@@ -4,9 +4,9 @@
  * Tools never change anything; changes always go through the actions block and the permission mode. */
 const AGENT_MAX_STEPS = 4;
 const AGENT_MODES = {
-  ask: { label: 'Ask every time', hint: 'Steward shows each change and waits for Apply.' },
+  ask: { label: 'Ask every time', hint: 'Diana shows each change and waits for Apply.' },
   auto: { label: 'Auto for small changes', hint: 'Adding, rescheduling and reprioritizing happen right away (you can undo). Finishing or deleting still asks.' },
-  plan: { label: 'Plan only', hint: 'Steward suggests but never changes your planner.' },
+  plan: { label: 'Plan only', hint: 'Diana suggests but never changes your planner.' },
 };
 const AGENT_SMALL = new Set(['add', 'update', 'meeting', 'move_meeting']);
 
