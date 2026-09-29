@@ -22,7 +22,7 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with *
 
 The `server/` folder runs Steward's engine on your own computer: **Qwen3 32B via Ollama**, sync, calendars and your documents. No Hugging Face or other cloud service is needed. See [`server/README.md`](server/README.md) for the setup steps: install Ollama, double-click `start.command` or `start.bat`, and connect Steward to `http://localhost:8787`.
 
-`space/` is the older Hugging Face Space version, kept for reference.
+`space/` is the Hugging Face Space version: it hosts the AI, sync, calendars and history, with no computer of your own required. It's the easiest option until you have hardware that can run a model well.
 
 ## Files
 

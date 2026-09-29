@@ -113,7 +113,7 @@ def _authorized(request: Request) -> bool:
 @app.get("/health")
 def health():
     return {"ok": True, "configured": bool(HF_TOKEN and STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS,
-            "features": ["sync", "calendar"], "sync": DATA_REPO or "this server only (temporary)"}
+            "features": ["sync", "calendar", "events"], "sync": DATA_REPO or "this server only (temporary)"}
 
 
 @app.post("/v1/chat/completions")
@@ -277,6 +277,59 @@ async def sync_put(request: Request):
         if STORE["flush"] is None:
             STORE["flush"] = asyncio.create_task(_flush_soon())
         return _sync_state()
+
+
+# ---------- history: events are buffered and saved to the dataset as small files under events/YYYY-MM/ ----------
+EVENTS = {"buffer": [], "seen": set(), "flush": None, "error": ""}
+
+
+def _events_write(lines, month, stamp):
+    from huggingface_hub import HfApi
+    HfApi(token=DATA_TOKEN).upload_file(path_or_fileobj=("\n".join(lines) + "\n").encode(), path_in_repo=f"events/{month}/{stamp}.jsonl",
+                                        repo_id=DATA_REPO, repo_type="dataset", commit_message=f"Steward history {stamp}")
+
+
+async def _events_flush(delay=90):
+    await asyncio.sleep(delay)
+    EVENTS["flush"] = None
+    batch, EVENTS["buffer"] = EVENTS["buffer"], []
+    by_month = {}
+    for e in batch:
+        month = datetime.fromtimestamp(int(e.get("ts", time.time() * 1000)) / 1000, tz=timezone.utc).strftime("%Y-%m")
+        by_month.setdefault(month, []).append(json.dumps(e, separators=(",", ":")))
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    try:
+        for month, lines in by_month.items():
+            if DATA_REPO:
+                await asyncio.to_thread(_events_write, lines, month, stamp)
+            else:
+                path = LOCAL_DATA.parent / f"steward-events-{month}.jsonl"
+                with open(path, "a") as fh:
+                    fh.write("\n".join(lines) + "\n")
+        EVENTS["error"] = ""
+    except Exception as e:
+        EVENTS["error"] = f"Couldn't save history: {e}"
+        print(EVENTS["error"])
+        EVENTS["buffer"] = batch + EVENTS["buffer"]  # try again later
+        if EVENTS["flush"] is None:
+            EVENTS["flush"] = asyncio.create_task(_events_flush(300))
+
+
+@app.post("/v1/events")
+async def events_post(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    body = await request.json()
+    received = int(time.time() * 1000)
+    fresh = []
+    for e in body.get("events", [])[:1000]:
+        if isinstance(e, dict) and e.get("id") and e.get("op") and e["id"] not in EVENTS["seen"]:
+            EVENTS["seen"].add(e["id"])
+            fresh.append({**e, "received": received})
+    EVENTS["buffer"].extend(fresh)
+    if fresh and EVENTS["flush"] is None:
+        EVENTS["flush"] = asyncio.create_task(_events_flush())
+    return {"ok": True, "stored": len(fresh)}
 
 
 # ---------- calendars: read a calendar's secret .ics link and return the next few weeks ----------
