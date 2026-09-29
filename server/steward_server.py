@@ -390,6 +390,22 @@ async def sync_put(request: Request):
 EVENTS_DIR = HOME / "data" / "events"
 
 
+_SEEN = None
+
+
+def _seen_event_ids():
+    global _SEEN
+    if _SEEN is None:
+        _SEEN = set()
+        for path in sorted(EVENTS_DIR.glob("*.jsonl"))[-3:] if EVENTS_DIR.exists() else []:
+            for line in path.read_text().splitlines():
+                try:
+                    _SEEN.add(json.loads(line)["id"])
+                except Exception:
+                    pass
+    return _SEEN
+
+
 @app.post("/v1/events")
 async def events_post(request: Request):
     if not _authorized(request):
@@ -397,8 +413,13 @@ async def events_post(request: Request):
     body = await request.json()
     items = [e for e in body.get("events", []) if isinstance(e, dict) and e.get("id") and e.get("op")][:1000]
     EVENTS_DIR.mkdir(parents=True, exist_ok=True)
+    seen = _seen_event_ids()
+    items = [e for e in items if e["id"] not in seen]  # a retried upload must not duplicate events
+    received = int(time.time() * 1000)
     by_month = {}
     for e in items:
+        seen.add(e["id"])
+        e["received"] = received
         month = datetime.fromtimestamp(int(e.get("ts", time.time() * 1000)) / 1000).strftime("%Y-%m")
         by_month.setdefault(month, []).append(json.dumps(e, separators=(",", ":")))
     for month, lines in by_month.items():
