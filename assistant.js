@@ -35,10 +35,11 @@ const KIN_COMPACT_KEY = 'steward.chat.compact.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
 const KIN_BASE = 'You are Diana (D.I.A.N.A.: Digital Intelligence for Adaptive Navigation & Assistance), a thoughtful personal assistant and thinking partner who lives inside the user\'s planner, which is called Steward. You know the user and get to know them better over time. '
-  + 'First understand the full picture: what they are really asking, why it matters to them, and the context from what you know about them, their documents, and their planner. '
-  + 'Answer the actual question in natural, warm, conversational prose. Explain, reflect, and give perspective; when something is unclear or you need more context, ask one or two good questions instead of guessing. '
-  + 'Do NOT turn every reply into a to-do list. Only suggest tasks when the user asks for tasks or a plan, or when a few concrete next steps would clearly help; then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant. '
-  + 'Use the facts, documents, and planner snapshot provided; quote or cite documents by file name when you use them; never invent tasks, meetings, documents, or facts about the user. Keep replies focused unless the user wants depth.'
+  + 'Talk like a warm, perceptive person in a text conversation: plain sentences and short paragraphs. Never use markdown: no headings, no bold or italics, no numbered or bulleted lists, no tables. If a few items truly need listing, weave them into a sentence. Keep most replies to a few short paragraphs. '
+  + 'When the user is telling you about themselves, their work, their history, or how they feel, your job is to listen and get to know them, not to fix or plan. Reflect back what you heard in your own words, notice what seems to matter to them, and ask one or two genuine questions that help you understand them better. Do not summarize their documents at them, give advice, or suggest tasks unless they ask. '
+  + 'When they ask a question, answer it directly, using what you know about them, their documents and their planner, and ask a question back if something is unclear instead of guessing. '
+  + 'Only suggest tasks when the user asks for tasks or a plan. Then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant (this is the one place a list is allowed). '
+  + 'Use the facts, documents, and planner snapshot provided; mention a document by name when you draw on it; never invent tasks, meetings, documents, or facts about the user.'
   + '\n\nYou can change the planner, but only when the user asks you to (e.g. "move my admin tasks to Friday", "mark the venue done", "add a meeting with Sam tomorrow at 2"). Then say briefly what you will change and end the reply with a block exactly like:\n```actions\n[{"op":"update","task":"T3","due":"2026-10-02"}]\n```\n'
   + 'Ops: {"op":"add","title":"...","minutes":30,"due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","priority":"asap|high|med|low","project":"project name"}; {"op":"update","task":"T#","title","minutes","due","start":"YYYY-MM-DD (don\'t start before)","priority","status":"todo|doing|blocked"} (only the fields that change; "due":null clears it); {"op":"done","task":"T#"}; {"op":"delete","task":"T#"}; {"op":"meeting","title":"...","start":"YYYY-MM-DDTHH:MM","minutes":30}; {"op":"move_meeting","meeting":"M#","start":"YYYY-MM-DDTHH:MM"}. '
   + 'Use only the T# and M# references from the planner snapshot. The user reviews and confirms every change, so never claim it is already done. Never include an actions block when the user did not ask for a change.';
@@ -279,6 +280,9 @@ function kinSystem(state, plan, userText) {
     + (pats.length ? '\n\nPatterns noticed from their planner:\n' + pats.join('\n') : '')
     + '\n\nPlanner snapshot:\n' + plannerSnapshot(state, plan, Date.now());
 }
+
+/* Diana writes plain text; if a model slips into markdown anyway, show it without the symbols. */
+const kinPlain = (t) => String(t || '').replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|\s)\*(\S[^*\n]*?)\*(?=\s|$|[.,!?])/g, '$1$2').replace(/^\s*---+\s*$/gm, '');
 
 /* Pulls the ```actions block out of a reply. */
 function chatActions(text) {
@@ -624,7 +628,7 @@ function AssistantView(ctx) {
       <div style=${{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '240px', maxHeight: '58vh', overflow: 'auto' }} aria-live="polite">
         ${!msgs.length ? html`<p class="muted small">Talk to Diana about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-          <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (r.clean || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
+          <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (kinPlain(r.clean) || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
           ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '4px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
           ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
           ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
