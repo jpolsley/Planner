@@ -15,6 +15,7 @@ A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with *
 - **Meeting recorder:** Notes → **Record meeting**, or transcribe an audio or video file. Speech is transcribed on your device with Whisper, and the audio never leaves it. Steward then writes a summary, decisions, action items and open questions, and offers the actions as tasks.
 - **Learns as you go:** when you finish a project, Steward can write a *playbook* (stages, real durations, lessons), plan similar projects from it, and revise it each time it's reused. It also summarizes past chats so it can recall them later, and **Tidy memory** merges or removes outdated facts and asks about contradictions. See Assistant → What I know.
 - **Agent:** before answering, Steward can look things up: search tasks, check a project, find free time, read notes, recall earlier chats, check the calendar. Choose what it may change next to the chat box: *Ask every time*, *Auto for small changes*, or *Plan only*. In long chats, older messages are summarized instead of dropped. The patterns follow open-claude-code.
+- **History (for learning):** Steward quietly records what changes and who changed it (you, Diana, or the scheduler). It also records what was planned each day, when you worked (timer sessions), and each of Diana's runs: what she looked up, what she proposed, and what you decided. The Steward server appends these to `data/events/`, one file per month. Later features use this history to learn how you actually work.
 - **Password lock:** the published site is encrypted (AES-256-GCM, with the key derived from your password via PBKDF2-SHA256, 600k iterations). The password is not stored in any file.
 
 ## Your own AI server (recommended)
@@ -34,6 +35,7 @@ The `server/` folder runs Steward's engine on your own computer: **Qwen3 32B via
 | `learning.js` | Playbooks, memory tidying, and conversation recall |
 | `agent.js` | Tool loop, permission modes |
 | `server/` | Steward server for your computer (Ollama, sync, calendars, docs) |
+| `events.js` | History recording (changes, plan snapshots, Diana runs) |
 | `sync.js` | Sync and calendar links through your Space |
 | `tools/lock.mjs`, `tools/gate.html` | Build the password-locked site into `dist/` |
 

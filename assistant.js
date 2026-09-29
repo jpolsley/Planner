@@ -330,13 +330,14 @@ function ActionCard({ x, state, A, patch }) {
   const on = acts.filter((r) => !off[r.i] && !r.text.startsWith('✕'));
   const apply = () => {
     const list = on.map((r) => ({ ...r.a, task: r.a.task && x.refs[r.a.task], meeting: r.a.meeting && x.refs[r.a.meeting] }));
-    A.applyActions(list);
+    A.applyActions(list, x.run);
+    if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, data: { decision: list.length === acts.length ? 'applied' : 'partly_applied', applied: list.length, proposed: x.actions.length, skipped: acts.filter((r) => !on.includes(r)).map((r) => r.a) } });
     patch(x.id, () => ({ applied: 'Applied ' + list.length + ' change' + (list.length === 1 ? '' : 's') + '. Press Undo to reverse.' }));
   };
   return html`<div class="actcard">
     <div class="small" style=${{ fontWeight: 600 }}>Diana wants to make ${acts.length} change${acts.length === 1 ? '' : 's'}</div>
     ${acts.map((r) => html`<label key=${r.i} class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" disabled=${r.text.startsWith('✕')} checked=${!off[r.i] && !r.text.startsWith('✕')} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`)}
-    <div style=${{ display: 'flex', gap: '6px' }}><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>Apply ${on.length}</button><button class="btn sm ghost" onClick=${() => patch(x.id, () => ({ applied: 'Dismissed.' }))}>Dismiss</button></div>
+    <div style=${{ display: 'flex', gap: '6px' }}><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>Apply ${on.length}</button><button class="btn sm ghost" onClick=${() => { if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, data: { decision: 'dismissed', proposed: x.actions.length } }); patch(x.id, () => ({ applied: 'Dismissed.' })); }}>Dismiss</button></div>
   </div>`;
 }
 
@@ -513,7 +514,8 @@ function AssistantView(ctx) {
     const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: String(m.content).replace(/```actions[\s\S]*?```/g, '[proposed changes]') }));
     const compact = kinLoad(KIN_COMPACT_KEY, null);
     const refs = { ...snapshotRefs(state, Date.now()).map };
-    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text, at: Date.now() }, { id, role: 'assistant', content: '', pending: true, refs }]);
+    const run = 'run-' + uid().slice(0, 10);
+    setMsgs((m) => [...m, { id: uid(), role: 'user', content: text, at: Date.now() }, { id, role: 'assistant', content: '', pending: true, refs, run }]);
     setInput('');
     let reply = '';
     try {
@@ -523,11 +525,13 @@ function AssistantView(ctx) {
       const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
       reply = r.text;
       const acts = mode === 'plan' ? [] : chatActions(reply).actions;
+      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, data: { question: text.slice(0, 500), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length } });
       patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
         const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
         const said = acts.map((a) => describeAction(a, refs, state)).filter(Boolean);
-        A.applyActions(list);
+        A.applyActions(list, run);
+        if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: run, data: { decision: 'auto_applied', applied: list.length, proposed: acts.length } });
         patch(id, () => ({ applied: 'Done automatically: ' + said.join('; ') + '. Press Undo to reverse.' }));
       }
     } catch (e) { patch(id, (x) => ({ content: (e.partial || x.content) + '\n[Error: ' + e.message + ']', pending: false })); return; }

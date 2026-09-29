@@ -138,7 +138,7 @@ def _authorized(request: Request) -> bool:
 @app.get("/health")
 def health():
     return {"ok": True, "configured": bool(STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS,
-            "features": ["sync", "calendar"], "sync": str(DATA_FILE), "server": "local"}
+            "features": ["sync", "calendar", "events"], "sync": str(DATA_FILE), "server": "local"}
 
 
 class ThinkFilter:
@@ -384,6 +384,44 @@ async def sync_put(request: Request):
         if STORE["flush"] is None:
             STORE["flush"] = asyncio.create_task(_flush_soon())
         return _sync_state()
+
+
+# ---------- history: append-only events, one file per month ----------
+EVENTS_DIR = HOME / "data" / "events"
+
+
+@app.post("/v1/events")
+async def events_post(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    body = await request.json()
+    items = [e for e in body.get("events", []) if isinstance(e, dict) and e.get("id") and e.get("op")][:1000]
+    EVENTS_DIR.mkdir(parents=True, exist_ok=True)
+    by_month = {}
+    for e in items:
+        month = datetime.fromtimestamp(int(e.get("ts", time.time() * 1000)) / 1000).strftime("%Y-%m")
+        by_month.setdefault(month, []).append(json.dumps(e, separators=(",", ":")))
+    for month, lines in by_month.items():
+        with open(EVENTS_DIR / f"{month}.jsonl", "a") as fh:
+            fh.write("\n".join(lines) + "\n")
+    return {"ok": True, "stored": len(items)}
+
+
+@app.get("/v1/events")
+async def events_get(request: Request, since: int = 0, limit: int = 2000):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    out = []
+    for path in sorted(EVENTS_DIR.glob("*.jsonl")) if EVENTS_DIR.exists() else []:
+        for line in path.read_text().splitlines():
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if int(e.get("ts", 0)) > since:
+                out.append(e)
+    out.sort(key=lambda e: e.get("ts", 0))
+    return {"events": out[-max(1, min(limit, 20000)):]}
 
 
 # ---------- calendars: read a calendar's secret .ics link and return the next few weeks ----------
