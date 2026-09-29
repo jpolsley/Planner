@@ -40,10 +40,20 @@ const stewardEvents = {
   },
 };
 
-function evMake(op, { entity = null, entity_id = null, actor = 'user', changes, corr, data } = {}) {
-  const e = { id: uid(), ts: Date.now(), device: evDevice, actor, op, entity, entity_id };
+/* Per-device sequence number: orders this device's events even if clocks drift or uploads arrive late. */
+let evCtx = null; // set while evDiff runs: every event from one change shares its commit id
+let evSeq = (() => { try { return +localStorage.getItem('steward.device.seq') || 0; } catch (e) { return 0; } })();
+const SCHEDULER_VERSION = 1; // bump when runSchedule's behavior changes, so old plan snapshots stay interpretable
+
+function evMake(op, { entity = null, entity_id = null, actor = 'user', changes, corr, commit, proposal, data } = {}) {
+  if (evCtx) { commit = commit || evCtx.commit; proposal = proposal || evCtx.proposal; }
+  evSeq += 1;
+  try { localStorage.setItem('steward.device.seq', String(evSeq)); } catch (e) {}
+  const e = { id: uid() + uid(), ts: Date.now(), device: evDevice, seq: evSeq, actor, op, entity, entity_id };
   if (changes && changes.length) e.changes = changes;
-  if (corr) e.corr = corr;
+  if (corr) e.corr = corr;            // trace id: one Diana run (or 'undo')
+  if (proposal) e.proposal = proposal; // the proposal a decision or change came from
+  if (commit) e.commit = commit;       // groups the field-level events of one change
   if (data) e.data = data;
   return e;
 }
@@ -59,8 +69,9 @@ const evSame = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 /* Compares two planner states and returns what changed. Imported calendar events (src) are skipped:
  * they are rebuilt from the calendar, not decided by the user. */
-function evDiff(prev, next, actor, corr) {
+function evDiff(prev, next, actor, corr, proposal) {
   const out = [];
+  evCtx = { commit: 'c-' + uid(), proposal };
   for (const [list, entity] of Object.entries(EV_LISTS)) {
     const a = prev[list] || [], b = next[list] || [];
     if (a === b) continue;
@@ -96,6 +107,7 @@ function evDiff(prev, next, actor, corr) {
     const changes = Object.keys({ ...prev.settings, ...next.settings }).filter((f) => !evSame(prev.settings[f], next.settings[f])).map((f) => ({ f, b: evVal(prev.settings[f]), a: evVal(next.settings[f]) }));
     if (changes.length) out.push(evMake('updated', { entity: 'settings', actor, corr, changes }));
   }
+  evCtx = null;
   return out;
 }
 function evSnapshot(entity, x) {
@@ -112,8 +124,9 @@ function evPlanSnapshot(plan, state, now) {
   const late = Object.entries(plan.info || {}).filter(([, i]) => i.late).map(([id]) => id);
   const unplaced = Object.entries(plan.info || {}).filter(([, i]) => i.unscheduled).map(([id]) => id);
   const sig = syncHash({ blocks, late, unplaced });
+  const input = syncHash({ t: state.tasks.filter((t) => t.status !== 'done').map((t) => [t.id, t.duration, t.spent, t.deadline, t.priority, t.startDate, t.deps, t.locked]), e: state.events.map((x) => [x.start, x.end]), s: state.settings });
   const last = kinLoad('steward.plansnap.v1', {});
   if (last.sig === sig && last.day === from) return;
   kinSave('steward.plansnap.v1', { sig, day: from });
-  stewardEvents.record('plan_snapshot', { entity: 'plan', actor: 'scheduler', data: { day: from, blocks, late, unplaced, open: state.tasks.filter((t) => t.status !== 'done').length } });
+  stewardEvents.record('plan_snapshot', { entity: 'plan', actor: 'scheduler', data: { day: from, scheduler_version: SCHEDULER_VERSION, plan_hash: sig, input_hash: input, blocks, late, unplaced, open: state.tasks.filter((t) => t.status !== 'done').length } });
 }

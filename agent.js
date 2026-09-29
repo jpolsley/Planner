@@ -106,6 +106,8 @@ async function agentRun({ system, history, state, plan, refs, onStep, onText, ma
     steps.push({ tool: call.name, args: call.args });
     onStep && onStep(steps);
     const result = call.bad ? 'That tool block was not valid JSON: ' + call.bad : agentTool(call.name, call.args, state, plan, refs);
+    // Evidence for the decision trace: a short summary and fingerprint of what Diana saw, not a second copy of the data.
+    steps[steps.length - 1].obs = { chars: result.length, lines: result.split('\n').length, hash: syncHash(result), head: result.split('\n')[0].slice(0, 160) };
     msgs.push({ role: 'assistant', content: out.trim() }, { role: 'user', content: 'Tool result (' + call.name + '):\n' + result.slice(0, 6000) + '\n\nContinue: use another tool if needed, or answer the user now.' });
   }
   return { text: '', steps };

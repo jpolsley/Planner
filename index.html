@@ -816,7 +816,7 @@ function App() {
   useEffect(() => {
     const prev = prevRef.current, who = actorRef.current || { actor: 'user' };
     prevRef.current = state; actorRef.current = null;
-    if (prev && prev !== state && prev.onboarded && who.actor !== 'sync' && typeof evDiff === 'function') stewardEvents.push(evDiff(prev, state, who.actor, who.corr));
+    if (prev && prev !== state && prev.onboarded && who.actor !== 'sync' && typeof evDiff === 'function') stewardEvents.push(evDiff(prev, state, who.actor, who.corr, who.proposal));
   }, [state]);
 
   /* ---- sync across devices, and calendar links, through the user's Space ---- */
@@ -907,7 +907,7 @@ function App() {
     updTask: (id, patch, label) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) }), label),
     delTask: (id) => commit((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id).map((t) => ({ ...t, deps: (t.deps || []).filter((d) => d !== id) })) }), 'Task deleted'),
     toggleDone: (id) => commit((s) => { const t = s.tasks.find((x) => x.id === id); return t ? withStatus(s, id, t.status === 'done' ? 'todo' : 'done') : s; }, 'Marked complete'),
-    applyActions: (list, corr) => commit((s) => list.reduce((st, a) => applyAction(st, a), s), 'Diana made ' + list.length + ' change' + (list.length === 1 ? '' : 's'), { actor: 'diana', corr }),
+    applyActions: (list, corr, proposal) => commit((s) => list.reduce((st, a) => applyAction(st, a), s), 'Diana made ' + list.length + ' change' + (list.length === 1 ? '' : 's'), { actor: 'diana', corr, proposal }),
     moveTask: (id, patch, label) => commit((s) => { const { status, ...rest } = patch; const s2 = status ? withStatus(s, id, status) : s; return { ...s2, tasks: s2.tasks.map((t) => (t.id === id ? { ...t, ...rest } : t)) }; }, label),
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
     updEvent: (id, patch, label) => commit((s) => (s.events.some((e) => e.id === id && e.src) ? s : { ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
