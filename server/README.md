@@ -20,6 +20,13 @@ The first start does three things:
 
 Keep the window open while you use Steward. Closing the window stops the server.
 
+## One-click Steward app (Mac)
+`launch-steward.sh` starts Ollama and the server if they're not running, then opens Steward in your browser. To turn it into a **Steward** app you can click, run this once in Terminal:
+```
+osacompile -o ~/Applications/Steward.app -e 'if (do shell script "test -d /Volumes/AIRDRIVE/Steward/server && echo yes || echo no") is "no" then' -e 'display dialog "Plug in AIRDRIVE, then open Steward again." buttons {"OK"} default button "OK" with title "Steward"' -e 'else' -e 'do shell script "/bin/bash /Volumes/AIRDRIVE/Steward/server/launch-steward.sh"' -e 'end if'
+```
+If your Steward folder isn't on a drive called AIRDRIVE, change the two paths in that command. Server output is saved to `server.log`.
+
 ## 3. Connect Steward
 In Steward, open **Assistant**. Enter **http://localhost:8787** and your Steward key, then press **Connect**. The planner on that device uploads to the server. Every other device you connect gets the same planner.
 
