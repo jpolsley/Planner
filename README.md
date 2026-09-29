@@ -1,6 +1,6 @@
 # Steward
 
-A local-first planner with **Diana** (Digital Intelligence for Adaptive Navigation & Assistance), its built-in AI, (tasks, calendar, projects, notes, auto-scheduling) with an on-device AI assistant that gets to know you. It's built on Kin Planner and the Kin Studio engine.
+A local-first planner (tasks, calendar, projects, notes, auto-scheduling) with **Diana**, its built-in AI (Digital Intelligence for Adaptive Navigation & Assistance). It's built on Kin Planner and the Kin Studio engine.
 
 - **No backend, no API key.** Your planner, chats, and memories are stored only in your browser.
 - **Assistant:** runs Qwen2.5 1.5B in your browser via [Transformers.js](https://huggingface.co/docs/transformers.js). If a device can't run it, the assistant switches to Qwen2.5 0.5B on its own.
