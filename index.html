@@ -352,6 +352,7 @@ select.ghostin{text-align-last:right}
 <script src="recorder.js"></script>
 <script src="learning.js"></script>
 <script src="agent.js"></script>
+<script src="events.js"></script>
 <script>
 /* ================= Steward — engine ================= */
 const MIN = 60000, SLOT = 15 * MIN, DAY = 86400000;
@@ -810,6 +811,13 @@ function App() {
   const [saveOk, setSaveOk] = useState(true);
 
   useEffect(() => { setSaveOk(saveState(state)); }, [state]);
+  /* History: record what changed since the last state (skipped for changes pulled from another device, which logged them itself). */
+  const prevRef = useRef(null);
+  useEffect(() => {
+    const prev = prevRef.current, who = actorRef.current || { actor: 'user' };
+    prevRef.current = state; actorRef.current = null;
+    if (prev && prev !== state && prev.onboarded && who.actor !== 'sync' && typeof evDiff === 'function') stewardEvents.push(evDiff(prev, state, who.actor, who.corr));
+  }, [state]);
 
   /* ---- sync across devices, and calendar links, through the user's Space ---- */
   const stateRef = useRef(state); stateRef.current = state;
@@ -817,6 +825,7 @@ function App() {
   useEffect(() => { const f = () => bump((n) => n + 1); stewardSync.subs.add(f); return () => stewardSync.subs.delete(f); }, []);
   const applySynced = useCallback((d) => {
     if (!d || !d.planner) return;
+    actorRef.current = { actor: 'sync' };
     setState((s) => ({ ...s, ...d.planner, plan: s.plan, events: [...(d.planner.events || []), ...s.events.filter((e) => e.src)], allday: s.allday }));
     if (d.memory) kinMem.replace(d.memory, d.memoryGone);
   }, []);
@@ -846,7 +855,7 @@ function App() {
     const space = () => { stewardSync.saveMeta({ rev: 0, hash: '' }); doSync(); refreshCalendars(); };
     document.addEventListener('visibilitychange', vis);
     addEventListener('steward-space', space);
-    const tick = setInterval(() => { if (document.visibilityState === 'visible') doSync(); }, 90000);
+    const tick = setInterval(() => { if (document.visibilityState === 'visible') { doSync(); stewardEvents.flush(); } }, 90000);
     const calTick = setInterval(refreshCalendars, 30 * 60000);
     window.kinMemChanged = () => { clearTimeout(window.__memPush); window.__memPush = setTimeout(() => doSync({ pushOnly: true }), 4000); };
     return () => { document.removeEventListener('visibilitychange', vis); removeEventListener('steward-space', space); clearInterval(tick); clearInterval(calTick); };
@@ -855,7 +864,9 @@ function App() {
   useEffect(() => { const t = setTimeout(() => doSync({ pushOnly: true }), 4000); return () => clearTimeout(t); }, [syncData]);
   useEffect(() => { try { localStorage.setItem('kin.view', view); } catch (e) {} }, [view]);
 
-  const commit = useCallback((fn, label) => {
+  const actorRef = useRef(null); // who made the next change: { actor, corr }
+  const commit = useCallback((fn, label, actor) => {
+    actorRef.current = typeof actor === 'string' ? { actor } : actor || { actor: 'user' };
     setState((prev) => {
       const next = typeof fn === 'function' ? fn(prev) : fn;
       if (next === prev) return prev;
@@ -866,7 +877,7 @@ function App() {
   }, []);
   const undo = useCallback(() => {
     const prev = hist.current.pop();
-    if (prev) { setState((cur) => syncStamp(cur, { ...prev, events: [...prev.events.filter((e) => !e.src), ...cur.events.filter((e) => e.src)], allday: cur.allday })); setToast({ text: 'Undone', id: uid() }); }
+    if (prev) { actorRef.current = { actor: 'user', corr: 'undo' }; setState((cur) => syncStamp(cur, { ...prev, events: [...prev.events.filter((e) => !e.src), ...cur.events.filter((e) => e.src)], allday: cur.allday })); setToast({ text: 'Undone', id: uid() }); }
   }, []);
   useEffect(() => { const k = (e) => { const tag = (e.target.tagName || '').toLowerCase(); if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !['input', 'textarea'].includes(tag)) { e.preventDefault(); undo(); } if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearch(true); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [undo]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), toast.text.length > 90 ? 15000 : 5000); return () => clearTimeout(t); }, [toast]);
@@ -888,6 +899,7 @@ function App() {
   useEffect(() => { if (!auto && !state.plan && state.onboarded) setState((s) => ({ ...s, plan: { blocks: computed.blocks } })); }, [auto]);
   const applyPlan = () => commit((s) => ({ ...s, plan: { blocks: computed.blocks } }), 'New plan applied');
   const alerts = useMemo(() => attention(state, computed, now), [state, computed, now]);
+  useEffect(() => { if (!state.onboarded || typeof evPlanSnapshot !== 'function') return; const t = setTimeout(() => evPlanSnapshot(plan, stateRef.current, Date.now()), 10000); return () => clearTimeout(t); }, [plan]);
 
   /* ---- actions ---- */
   const A = useMemo(() => ({
@@ -895,7 +907,7 @@ function App() {
     updTask: (id, patch, label) => commit((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...(typeof patch === 'function' ? patch(t) : patch) } : t)) }), label),
     delTask: (id) => commit((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id).map((t) => ({ ...t, deps: (t.deps || []).filter((d) => d !== id) })) }), 'Task deleted'),
     toggleDone: (id) => commit((s) => { const t = s.tasks.find((x) => x.id === id); return t ? withStatus(s, id, t.status === 'done' ? 'todo' : 'done') : s; }, 'Marked complete'),
-    applyActions: (list) => commit((s) => list.reduce((st, a) => applyAction(st, a), s), 'Steward made ' + list.length + ' change' + (list.length === 1 ? '' : 's')),
+    applyActions: (list, corr) => commit((s) => list.reduce((st, a) => applyAction(st, a), s), 'Diana made ' + list.length + ' change' + (list.length === 1 ? '' : 's'), { actor: 'diana', corr }),
     moveTask: (id, patch, label) => commit((s) => { const { status, ...rest } = patch; const s2 = status ? withStatus(s, id, status) : s; return { ...s2, tasks: s2.tasks.map((t) => (t.id === id ? { ...t, ...rest } : t)) }; }, label),
     addEvent: (o) => { const e = { id: uid(), kind: 'meeting', ...o }; commit((s) => ({ ...s, events: [...s.events, e] })); return e; },
     updEvent: (id, patch, label) => commit((s) => (s.events.some((e) => e.id === id && e.src) ? s : { ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) }), label),
