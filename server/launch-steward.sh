@@ -6,13 +6,19 @@ LOG="$DIR/server.log"
 URL="${STEWARD_URL:-https://ministryai.github.io/Planner/}"
 up() { curl -s -m 2 "$1" >/dev/null; }
 
-# 1. Ollama (skipped when steward.env points the AI somewhere else)
+# 1. Ollama (skipped when steward.env points the AI somewhere else). If one is already running, it is used as is.
 if ! grep -qE '^LLM_URL=https?://' "$DIR/steward.env" 2>/dev/null || grep -q ':11434' "$DIR/steward.env"; then
   if ! up http://127.0.0.1:11434/api/tags; then
-    for app in "$HOME/Applications/Ollama.app" "/Applications/Ollama.app"; do
-      if [ -d "$app" ]; then open -g "$app"; break; fi
+    # Start Ollama's server directly (not the app), so its model folder is the one we choose. The server
+    # decides where models live; the default is on this computer. Override with STEWARD_OLLAMA_MODELS.
+    OLLAMA_BIN=""
+    for b in "$HOME/Applications/Ollama.app/Contents/Resources/ollama" "/Applications/Ollama.app/Contents/Resources/ollama" "$(command -v ollama 2>/dev/null)"; do
+      if [ -n "$b" ] && [ -x "$b" ]; then OLLAMA_BIN="$b"; break; fi
     done
-    for i in $(seq 1 30); do up http://127.0.0.1:11434/api/tags && break; sleep 1; done
+    if [ -n "$OLLAMA_BIN" ]; then
+      OLLAMA_MODELS="${STEWARD_OLLAMA_MODELS:-$HOME/.ollama/models}" OLLAMA_KEEP_ALIVE=24h nohup "$OLLAMA_BIN" serve >> "$DIR/ollama.log" 2>&1 < /dev/null &
+      for i in $(seq 1 30); do up http://127.0.0.1:11434/api/tags && break; sleep 1; done
+    fi
   fi
 fi
 
