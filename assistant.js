@@ -34,7 +34,7 @@ const KIN_CHAT_KEY = 'kin.planner.chat.v1';
 const KIN_COMPACT_KEY = 'steward.chat.compact.v1';
 const KIN_MEM_KEY = 'kin.planner.memory.v1';
 const KIN_PREF_KEY = 'kin.planner.ai.v1';
-const KIN_BASE = 'You are Steward, a thoughtful personal assistant and thinking partner who lives inside the user\'s planner. You know the user and get to know them better over time. '
+const KIN_BASE = 'You are Diana (D.I.A.N.A.: Digital Intelligence for Adaptive Navigation & Assistance), a thoughtful personal assistant and thinking partner who lives inside the user\'s planner, which is called Steward. You know the user and get to know them better over time. '
   + 'First understand the full picture: what they are really asking, why it matters to them, and the context from what you know about them, their documents, and their planner. '
   + 'Answer the actual question in natural, warm, conversational prose. Explain, reflect, and give perspective; when something is unclear or you need more context, ask one or two good questions instead of guessing. '
   + 'Do NOT turn every reply into a to-do list. Only suggest tasks when the user asks for tasks or a plan, or when a few concrete next steps would clearly help; then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant. '
@@ -123,7 +123,7 @@ const kinAI = {
       this.set({ status: 'loading', progress: 'Checking for a GPU…', error: '' });
       let gpu = false;
       try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch (e) {}
-      if (!gpu) this.set({ note: 'This browser isn’t giving Steward access to the GPU, so it’s using the lighter 0.5B model on the CPU, which is slower. For the full 1.5B model and much faster replies, use a current version of Chrome or Edge.' });
+      if (!gpu) this.set({ note: 'This browser isn’t giving Diana access to the GPU, so it’s using the lighter 0.5B model on the CPU, which is slower. For the full 1.5B model and much faster replies, use a current version of Chrome or Edge.' });
       key = gpu ? 'main' : 'fallback';
     }
     // Ask the browser not to evict the downloaded model when space is short.
@@ -141,8 +141,8 @@ const kinAI = {
       } else if (d.type === 'ready') this.set({ status: 'ready', device: d.device, progress: '' });
       else if (d.type === 'error' && d.phase === 'load') {
         const msg = /^\d+$/.test(String(d.message).trim()) ? 'the browser ran out of memory' : d.message;
-        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + msg + '), so Steward is using the lighter 0.5B model.' }); this.load('fallback'); }
-        else this.set({ status: 'error', error: 'Steward couldn’t start: ' + msg + (msg === d.message ? '.' : '. Close other tabs and press Load Steward to try again.') });
+        if (key === 'main') { this.set({ note: 'This device couldn’t run the 1.5B model (' + msg + '), so Diana is using the lighter 0.5B model.' }); this.load('fallback'); }
+        else this.set({ status: 'error', error: 'Diana couldn’t start: ' + msg + (msg === d.message ? '.' : '. Close other tabs and press Load Diana to try again.') });
       } else if (d.type === 'fallback') this.set({ progress: d.text });
       const job = this.jobs.get(d.requestId);
       if (!job) return;
@@ -325,7 +325,7 @@ function parseDue(v, state) {
 function ActionCard({ x, state, A, patch }) {
   const acts = x.actions.map((a, i) => ({ a, i, text: describeAction(a, x.refs || {}, state) })).filter((r) => r.text);
   const [off, setOff] = useState({});
-  if (!acts.length) return x.actions.length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Steward suggested changes, but they refer to tasks that no longer exist.</div>` : null;
+  if (!acts.length) return x.actions.length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Diana suggested changes, but they refer to tasks that no longer exist.</div>` : null;
   if (x.applied) return html`<div class="small muted" style=${{ marginTop: '6px' }}>✓ ${x.applied}</div>`;
   const on = acts.filter((r) => !off[r.i] && !r.text.startsWith('✕'));
   const apply = () => {
@@ -334,7 +334,7 @@ function ActionCard({ x, state, A, patch }) {
     patch(x.id, () => ({ applied: 'Applied ' + list.length + ' change' + (list.length === 1 ? '' : 's') + '. Press Undo to reverse.' }));
   };
   return html`<div class="actcard">
-    <div class="small" style=${{ fontWeight: 600 }}>Steward wants to make ${acts.length} change${acts.length === 1 ? '' : 's'}</div>
+    <div class="small" style=${{ fontWeight: 600 }}>Diana wants to make ${acts.length} change${acts.length === 1 ? '' : 's'}</div>
     ${acts.map((r) => html`<label key=${r.i} class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" disabled=${r.text.startsWith('✕')} checked=${!off[r.i] && !r.text.startsWith('✕')} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`)}
     <div style=${{ display: 'flex', gap: '6px' }}><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>Apply ${on.length}</button><button class="btn sm ghost" onClick=${() => patch(x.id, () => ({ applied: 'Dismissed.' }))}>Dismiss</button></div>
   </div>`;
@@ -441,7 +441,7 @@ async function kinDraftProject(goal, state) {
   const assume = (j.assumptions || []).map(String).slice(0, 5);
   if (w.date == null && !aiDate) assume.unshift('No target date given, so I assumed ' + fmtD(target) + '.');
   if (pb) assume.unshift('Based on your playbook “' + pb.title + '”.');
-  assume.push('Drafted by Steward’s AI. Deadlines are spread by effort; adjust anything before accepting.');
+  assume.push('Drafted by Diana. Deadlines are spread by effort; adjust anything before accepting.');
   return { goal, name: String(j.name || goal).slice(0, 80), kind: 'AI plan', target, stages, assume, ask: j.question ? String(j.question) : null, dateGiven: w.date != null, usedPlaybook: pb ? pb.id : null };
 }
 async function kinExtractNote(note, state) {
@@ -574,7 +574,7 @@ function AssistantView(ctx) {
   if (sp && !sp.id) { const h = sp.url.replace(/^https:\/\//, '').replace(/\.hf\.space$/, ''); const i = h.indexOf('-'); if (i > 0) sp.id = h.slice(0, i) + '/' + h.slice(i + 1); }
 
   return html`<div>
-    <header class="hdr"><div><div class="sub">Your planning AI · learns about you</div><h1>Assistant</h1></div><span class="grow"></span>
+    <header class="hdr"><div><div class="sub">Digital Intelligence for Adaptive Navigation & Assistance</div><h1>Diana</h1></div><span class="grow"></span>
       <div class="seg" style=${{ display: 'flex', gap: '6px' }}>
         <button class=${'btn sm' + (tab === 'chat' ? ' pri' : ' ghost')} onClick=${() => setTab('chat')}>Chat</button>
         <button class=${'btn sm' + (tab === 'memory' ? ' pri' : ' ghost')} onClick=${() => setTab('memory')}>What I know (${kinMem.items.length})</button>
@@ -585,7 +585,7 @@ function AssistantView(ctx) {
           <b>${m && m.key !== 'cloud' ? m.name : KIN_MODELS.main.name}</b>
           <span class="muted small">${ready ? (kinAI.device === 'cloud' ? 'Ready · via your Steward server' : 'Ready on ' + (kinAI.device === 'webgpu' ? 'GPU' : 'CPU') + ' · on this device') : kinAI.status === 'loading' ? 'Loading… ' + kinAI.progress : kinAI.status === 'error' ? 'Failed to load' : 'Not loaded · ' + KIN_MODELS.main.size + ' one-time download'}</span>
           <span style=${{ flex: '1' }}></span>
-          ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Steward</button>` : null}
+          ${kinAI.status !== 'loading' && !ready ? html`<button class="btn pri sm" onClick=${() => kinAI.load()}>Load Diana</button>` : null}
           ${ready ? html`<button class="btn sm ghost" disabled=${busy} onClick=${() => kinAI.unload()}>Unload</button>` : null}
           <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.autoLoad} onChange=${(e) => setPrefs({ autoLoad: e.target.checked })} />Load when I open Steward</label>
           <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label>
@@ -618,7 +618,7 @@ function AssistantView(ctx) {
 
     ${tab === 'chat' ? html`<section class="panel">
       <div style=${{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '240px', maxHeight: '58vh', overflow: 'auto' }} aria-live="polite">
-        ${!msgs.length ? html`<p class="muted small">Talk to Steward about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
+        ${!msgs.length ? html`<p class="muted small">Talk to Diana about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
         ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
           <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (r.clean || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
           ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '4px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
@@ -637,7 +637,7 @@ function AssistantView(ctx) {
       </div>
       <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
         <${Icon} n="spark" cls="muted" />
-        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Steward, or tell it about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
+        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Diana, or tell her about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
         ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
       </form>
     </section>` : html`<div><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
@@ -659,13 +659,13 @@ function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
   }).catch(() => setToast({ text: 'That file isn’t a Steward memory backup', id: uid() }));
   return html`<div>
     <section class="panel" style=${{ marginBottom: '16px' }}>
-      <div class="ph"><h2>What Steward knows about you</h2><span class="grow"></span>
+      <div class="ph"><h2>What Diana knows about you</h2><span class="grow"></span>
         <label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${prefs.learn} onChange=${(e) => setPrefs({ learn: e.target.checked })} />Learn from our chats</label></div>
       <form style=${{ padding: '12px 16px', display: 'flex', gap: '8px' }} onSubmit=${(e) => { e.preventDefault(); if (kinMem.add(draft, 'you')) setDraft(''); else setToast({ text: 'Already known', id: uid() }); }}>
-        <input class="in" value=${draft} onInput=${(e) => setDraft(e.target.value)} placeholder="Teach Steward something, e.g. “I do my best thinking before 10am”" aria-label="New memory" />
+        <input class="in" value=${draft} onInput=${(e) => setDraft(e.target.value)} placeholder="Teach Diana something, e.g. “I do my best thinking before 10am”" aria-label="New memory" />
         <button class="btn pri sm" type="submit" disabled=${draft.trim().length < 4}>Add</button>
       </form>
-      ${!kinMem.items.length ? html`<p class="muted small" style=${{ padding: '0 16px 16px' }}>Nothing yet. As you chat, Steward will save lasting facts here: your role, routines, goals, and preferences. You can edit or delete anything.</p>` : null}
+      ${!kinMem.items.length ? html`<p class="muted small" style=${{ padding: '0 16px 16px' }}>Nothing yet. As you chat, Diana will save lasting facts here: your role, routines, goals, and preferences. You can edit or delete anything.</p>` : null}
       <div>${kinMem.items.map((m) => html`<div key=${m.id} style=${{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 16px', borderTop: '1px solid var(--line)' }}>
         ${editing === m.id
           ? html`<input class="in" autoFocus value=${m.text} onInput=${(e) => kinMem.update(m.id, e.target.value)} onBlur=${() => setEditing(null)} onKeyDown=${(e) => e.key === 'Enter' && setEditing(null)} aria-label="Edit memory" />`
@@ -677,14 +677,14 @@ function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
         <button class="btn sm" onClick=${exportMem} disabled=${!kinMem.items.length}>Back up memory</button>
         <button class="btn sm" onClick=${() => fileRef.current.click()}>Restore from file</button>
         <input ref=${fileRef} type="file" accept=".json,application/json" hidden onChange=${(e) => { importMem(e.target.files[0]); e.target.value = ''; }} />
-        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Steward has learned about you?')) { kinMem.gone = { ...kinMem.gone, ...Object.fromEntries(kinMem.items.map((m) => [m.id, Date.now()])) }; kinSave(KIN_MEM_KEY + '.gone', kinMem.gone); kinMem.commit([]); } }}>Forget everything</button>` : null}
+        ${kinMem.items.length ? html`<button class="btn sm ghost" onClick=${() => { if (confirm('Forget everything Diana has learned about you?')) { kinMem.gone = { ...kinMem.gone, ...Object.fromEntries(kinMem.items.map((m) => [m.id, Date.now()])) }; kinSave(KIN_MEM_KEY + '.gone', kinMem.gone); kinMem.commit([]); } }}>Forget everything</button>` : null}
       </div>
     </section>
     <section class="panel">
       <div class="ph"><h2>Patterns from your planner</h2></div>
       <div style=${{ padding: '12px 16px' }}>
         ${pats.length ? pats.map((p) => html`<p key=${p} style=${{ margin: '0 0 6px' }}>• ${p}</p>`) : html`<p class="muted small" style=${{ margin: 0 }}>Complete a few more tasks and Steward will start noticing how you work: your estimates, best times of day, and deadlines.</p>`}
-        <p class="small muted" style=${{ margin: '10px 0 0' }}>These update automatically as you use the planner, and Steward uses them in every answer.</p>
+        <p class="small muted" style=${{ margin: '10px 0 0' }}>These update automatically as you use the planner, and Diana uses them in every answer.</p>
       </div>
     </section>
   </div>`;
