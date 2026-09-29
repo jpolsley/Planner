@@ -40,6 +40,12 @@ STEWARD_KEY = os.environ.get("STEWARD_KEY", "")
 MODELS = [m.strip() for m in os.environ.get("MODEL", "qwen3:32b").split(",") if m.strip()]
 LLM_URL = os.environ.get("LLM_URL", "http://127.0.0.1:11434/v1/chat/completions")
 LLM_KEY = os.environ.get("LLM_KEY", "")
+# Talking to Ollama's own API lets the server keep the model loaded, give it enough context for Steward's
+# briefing, and switch Qwen3's thinking off properly. Any other endpoint uses the OpenAI format.
+OLLAMA = re.match(r"^(https?://[^/]+:11434)", LLM_URL)
+OLLAMA_BASE = OLLAMA.group(1) if OLLAMA and os.environ.get("OLLAMA_NATIVE", "1") != "0" else ""
+NUM_CTX = int(os.environ.get("NUM_CTX", "12288"))
+KEEP_ALIVE = os.environ.get("KEEP_ALIVE", "24h")
 HOME = Path(os.path.expanduser(os.environ.get("STEWARD_HOME", "~/Steward")))
 DOCS_DIR = HOME / "docs"
 DATA_FILE = HOME / "data" / "steward.json"
@@ -188,6 +194,8 @@ async def chat(request: Request):
     elif note:
         messages.insert(0, {"role": "system", "content": note.strip()})
     # Qwen3: answer directly instead of spending minutes thinking first.
+    if OLLAMA_BASE:
+        return await _ollama_chat(messages, body)
     if any("qwen3" in m.lower() for m in MODELS) and messages[-1]["role"] == "user":
         messages[-1] = {**messages[-1], "content": str(messages[-1]["content"]) + " /no_think"}
 
@@ -246,6 +254,63 @@ async def chat(request: Request):
         print("Model failed:", last_error)
         if res.status_code == 404:
             last_error = f"The model {model} isn't downloaded. Run: ollama pull {model}"
+    await client.aclose()
+    return JSONResponse({"error": last_error}, status_code=502)
+
+
+async def _ollama_chat(messages, body):
+    """Streams from Ollama's /api/chat and re-emits it in the OpenAI stream format Steward reads."""
+    client = httpx.AsyncClient(timeout=httpx.Timeout(900, connect=10))
+    last_error = "no models configured"
+    for model in MODELS:
+        payload = {"model": model, "messages": messages, "stream": True, "think": False, "keep_alive": KEEP_ALIVE,
+                   "options": {"num_ctx": NUM_CTX, "num_predict": min(int(body.get("max_tokens", 400)), 1500),
+                               "temperature": max(0.1, min(float(body.get("temperature", 0.6)), 1.5))}}
+        try:
+            res = await client.send(client.build_request("POST", OLLAMA_BASE + "/api/chat", json=payload), stream=True)
+            if res.status_code == 400:
+                detail = (await res.aread()).decode(errors="ignore")
+                await res.aclose()
+                if "think" in detail.lower():  # models without a thinking switch
+                    payload.pop("think")
+                    res = await client.send(client.build_request("POST", OLLAMA_BASE + "/api/chat", json=payload), stream=True)
+                else:
+                    last_error = f"{model}: 400 {detail[:200]}"
+                    continue
+        except httpx.ConnectError:
+            await client.aclose()
+            return JSONResponse({"error": "Ollama isn't running on this computer. Open the Ollama app and try again."}, status_code=502)
+        if res.status_code == 200:
+            async def relay(res=res):
+                flt = ThinkFilter()
+                sse = lambda text: "data: " + json.dumps({"choices": [{"delta": {"content": text}}]}) + "\n\n"
+                try:
+                    async for line in res.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            j = json.loads(line)
+                        except Exception:
+                            continue
+                        if j.get("error"):
+                            yield sse("\n[Error: " + str(j["error"]) + "]")
+                            break
+                        text = flt.feed((j.get("message") or {}).get("content") or "")
+                        if text:
+                            yield sse(text)
+                        if j.get("done"):
+                            break
+                    if flt.buf and not flt.inside:
+                        yield sse(flt.buf)
+                    yield "data: [DONE]\n\n"
+                finally:
+                    await res.aclose()
+                    await client.aclose()
+            return StreamingResponse(relay(), media_type="text/event-stream", headers={"X-Steward-Model": model})
+        detail = (await res.aread()).decode(errors="ignore")[:300]
+        await res.aclose()
+        last_error = f"The model {model} isn't downloaded. Run: ollama pull {model}" if res.status_code == 404 else f"{model}: {res.status_code} {detail}"
+        print("Model failed:", last_error)
     await client.aclose()
     return JSONResponse({"error": last_error}, status_code=502)
 
@@ -376,7 +441,7 @@ def status_page():
     return f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Steward server</title><style>body{{font:16px/1.6 system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#e6e6e6;background:#0b0b0b}}code{{background:#1c1c1c;padding:1px 5px;border-radius:4px}}</style></head><body>
 <h1>Steward server</h1><p><b>Status:</b> {status}</p>
-<p><b>Model:</b> {esc(", ".join(MODELS))} via <code>{esc(LLM_URL)}</code></p>
+<p><b>Model:</b> {esc(", ".join(MODELS))} via <code>{esc(OLLAMA_BASE + "/api/chat" if OLLAMA_BASE else LLM_URL)}</code>{(" · context " + str(NUM_CTX) + " · kept loaded " + KEEP_ALIVE) if OLLAMA_BASE else ""}</p>
 <p><b>Planner saved to:</b> <code>{esc(str(DATA_FILE))}</code>{(" · ⚠️ " + esc(STORE["error"])) if STORE["error"] else ""}</p>
 <p><b>Documents</b> (put .txt, .md or .pdf files in <code>{esc(str(DOCS_DIR))}</code> and restart): {esc(", ".join(docs)) if docs else "none yet"}</p>
 </body></html>"""

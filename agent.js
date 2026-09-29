@@ -88,7 +88,10 @@ const AGENT_TOOL_LABEL = { search_tasks: 'Searching tasks', project_status: 'Che
 
 /* Runs the loop. onStep(steps) reports each lookup; onText(textSoFar) streams the answer. Returns { text, steps }. */
 async function agentRun({ system, history, state, plan, refs, onStep, onText, maxTokens = 700 }) {
-  const msgs = [{ role: 'system', content: system + AGENT_TOOLS_PROMPT }, ...history];
+  // Parts that never change go first so a local model can reuse what it already read (prompt caching);
+  // the planner snapshot, recall and time come after.
+  const content = system.startsWith(KIN_BASE) ? KIN_BASE + AGENT_TOOLS_PROMPT + system.slice(KIN_BASE.length) : system + AGENT_TOOLS_PROMPT;
+  const msgs = [{ role: 'system', content }, ...history];
   const steps = [];
   for (let i = 0; i <= AGENT_MAX_STEPS; i++) {
     let streamed = '';
