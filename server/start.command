@@ -13,7 +13,10 @@ print("\nYour new Steward key (enter it in Steward; it's also saved in steward.e
 PY
 fi
 MODEL=$(grep -E '^MODEL=' steward.env | cut -d= -f2 | cut -d, -f1)
-if command -v ollama >/dev/null 2>&1; then
+LLM_URL=$(grep -E '^LLM_URL=' steward.env | cut -d= -f2-)
+if [ -n "$LLM_URL" ] && ! echo "$LLM_URL" | grep -q ':11434'; then
+  echo "Using the AI at $LLM_URL (not Ollama)."
+elif command -v ollama >/dev/null 2>&1; then
   ollama list | grep -q "^${MODEL:-qwen3:32b}" || { echo "Downloading ${MODEL:-qwen3:32b} (one time, about 20 GB)…"; ollama pull "${MODEL:-qwen3:32b}"; }
 else
   echo "⚠️  Ollama isn't installed. Get it from https://ollama.com, then run this again."
