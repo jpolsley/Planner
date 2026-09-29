@@ -35,7 +35,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 STEWARD_KEY = os.environ.get("STEWARD_KEY", "")
 MODELS = [m.strip() for m in os.environ.get(
-    "MODELS", "Qwen/Qwen2.5-72B-Instruct,meta-llama/Llama-3.3-70B-Instruct,Qwen/Qwen2.5-7B-Instruct").split(",") if m.strip()]
+    "MODELS", "Qwen/Qwen3.8-27B,Qwen/Qwen2.5-72B-Instruct,meta-llama/Llama-3.3-70B-Instruct").split(",") if m.strip()]
 ROUTER = os.environ.get("HF_ROUTER", "https://router.huggingface.co/v1/chat/completions")
 DOCS_DIR = Path(__file__).parent / "docs"
 
@@ -104,6 +104,36 @@ def documents_note():
             "and no passage is shown, say which document you would need and ask them to mention it by name.") if names else ""
 
 
+class ThinkFilter:
+    """Qwen3 may think out loud inside <think>…</think>; Steward only wants the answer."""
+    def __init__(self):
+        self.inside = False
+        self.buf = ""
+
+    def feed(self, text):
+        self.buf += text
+        out = ""
+        while self.buf:
+            if self.inside:
+                end = self.buf.find("</think>")
+                if end < 0:
+                    self.buf = self.buf[-8:]
+                    return out
+                self.buf = self.buf[end + 8:].lstrip()
+                self.inside = False
+            else:
+                start = self.buf.find("<think>")
+                if start < 0:
+                    keep = max((i for i in range(1, 7) if self.buf.endswith("<think>"[:i])), default=0)
+                    out += self.buf[:len(self.buf) - keep]
+                    self.buf = self.buf[len(self.buf) - keep:]
+                    return out
+                out += self.buf[:start]
+                self.buf = self.buf[start + 7:]
+                self.inside = True
+        return out
+
+
 # ---------- API ----------
 def _authorized(request: Request) -> bool:
     given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
@@ -141,6 +171,7 @@ async def chat(request: Request):
             messages.insert(0, {"role": "system", "content": note.strip()})
 
     payload = {
+        "chat_template_kwargs": {"enable_thinking": False},  # Qwen3.x: answer directly (ignored by other models)
         "messages": messages,
         "max_tokens": min(int(body.get("max_tokens", 400)), 1200),
         "temperature": max(0.1, min(float(body.get("temperature", 0.6)), 1.5)),
@@ -154,11 +185,38 @@ async def chat(request: Request):
     for model in MODELS:
         req = client.build_request("POST", ROUTER, headers=headers, json={**payload, "model": model})
         res = await client.send(req, stream=True)
+        if res.status_code in (400, 422):  # a provider that rejects the thinking switch: ask again without it
+            await res.aclose()
+            plain = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
+            res = await client.send(client.build_request("POST", ROUTER, headers=headers, json={**plain, "model": model}), stream=True)
         if res.status_code == 200:
             async def relay(res=res):
+                # Newer Qwen models may think out loud (<think>… or a separate reasoning field); Steward only shows the answer.
+                flt, buf = ThinkFilter(), ""
                 try:
-                    async for chunk in res.aiter_raw():
-                        yield chunk
+                    async for chunk in res.aiter_text():
+                        buf += chunk
+                        lines = buf.split("\n")
+                        buf = lines.pop()
+                        for line in lines:
+                            data = line[5:].strip() if line.startswith("data:") else ""
+                            if not data:
+                                continue
+                            if data == "[DONE]":
+                                if flt.buf and not flt.inside:
+                                    yield "data: " + json.dumps({"choices": [{"delta": {"content": flt.buf}}]}) + "\n\n"
+                                    flt.buf = ""
+                                yield "data: [DONE]\n\n"
+                                continue
+                            try:
+                                j = json.loads(data)
+                                delta = (j.get("choices") or [{}])[0].get("delta", {})
+                                text = flt.feed(delta.get("content") or "")
+                                if not text:
+                                    continue
+                                yield "data: " + json.dumps({"choices": [{"delta": {"content": text}}]}) + "\n\n"
+                            except Exception:
+                                continue
                 finally:
                     await res.aclose()
                     await client.aclose()
