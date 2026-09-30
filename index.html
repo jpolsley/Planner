@@ -251,6 +251,31 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .dr-more{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:14px 0 2px;color:var(--ink);font:600 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;text-align:left;cursor:pointer}
 .dr-more .small{text-transform:none;letter-spacing:0;font:400 12px var(--f-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dr-more .chev{color:var(--ink-3)}
 .dr-details{display:flex;flex-direction:column;gap:14px}
+.pc-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.pc-health{font:600 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);white-space:nowrap;padding-top:4px}.pc-health.ok{color:var(--good)}.pc-health.bad{color:var(--bad)}.pc-health.big{font-size:11.5px}
+.pc-desc{color:var(--ink-2);font-size:13px;margin-top:-4px}
+.pc-sec{display:flex;flex-direction:column;gap:2px}.pc-sec .eyebrow,.pd-about .eyebrow{font:500 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.pc-line{font-size:13.5px;font-weight:500}
+.pc-foot{font:500 11.5px var(--f-mono);color:var(--ink-3);border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+.ph2{display:flex;flex-direction:column;gap:8px;padding:4px 0 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+.ph2-top{display:flex;gap:14px;align-items:center}.ph2-top .title-in{font-size:28px;margin:0;flex:1;min-width:0}
+.ph2-line{font-size:13.5px;color:var(--ink-2)}.ph2-line b{color:var(--ink);font-weight:600}
+.ph2-acts{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.ph2-next{background:none;border:0;padding:0;text-align:left;font-weight:500;font-size:13.5px;cursor:pointer;color:var(--ink)}
+.sstrip{display:flex;gap:0;margin-top:10px;overflow-x:auto}
+.ss{flex:1;min-width:110px;display:flex;gap:8px;align-items:center;padding:8px 10px 8px 0;border-top:2px solid var(--line);font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
+.ss.done{border-top-color:color-mix(in srgb,var(--c) 45%,var(--line))}.ss.cur{border-top-color:var(--c);color:var(--ink)}.ss .ss-mark{font-size:11px}.ss.cur .ss-mark{color:var(--c)}
+.ss-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd2{display:grid;grid-template-columns:minmax(0,1fr) 280px;grid-template-areas:'tasks rail';gap:18px 26px;align-items:start}
+.pd2 .pd-tasks{grid-area:tasks;min-width:0}.pd-rail{grid-area:rail;display:flex;flex-direction:column;gap:16px}
+.pd-facts{padding:12px 14px}.pd-facts span{font-size:13px}
+.pd-about{display:flex;flex-direction:column;gap:6px}.pd-about .pd-desc{margin:0 0 8px;min-height:80px}.pd-about .pd-desc.sm{min-height:60px}
+.bcol-h.stage{flex-direction:column;align-items:flex-start;gap:2px}
+.bcol.st-done{opacity:.62}.bcol.st-done:hover{opacity:1}
+.bcol.st-cur{border-color:color-mix(in srgb,var(--c,var(--ink-2)) 55%,var(--line))}
+.bcol.st-fut .bcol-t{color:var(--ink-2)}
+.bcol .ss-mark{margin-right:8px;color:var(--ink-3)}.bcol.st-cur .ss-mark{color:var(--ink)}
+@media (max-width:860px){.pd2{grid-template-columns:1fr;grid-template-areas:'tasks' 'rail'}.ph2-top .title-in{font-size:22px}.ss{min-width:90px}}
 .bcard{text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:3px}
 .bcard .mono{font-size:11px}.bcard.dn b{text-decoration:line-through;color:var(--ink-3)}
 .bcard-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.bcard-tags .lbl-pill{margin:0}
@@ -1635,7 +1660,7 @@ function boardColumns(by, ts, state, p) {
     { key: '_', label: 'No project', patch: { projectId: null, stage: null }, tasks: ts.filter((t) => !t.projectId || !known.has(t.projectId)) }];
 }
 
-function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn }) {
+function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn, colInfo }) {
   const cols = boardColumns(by, ts, state, p);
   const [drag, setDrag] = useState(null); // { id, from, x, y, dx, dy, w, over }
   const [adding, setAdding] = useState(null);
@@ -1732,11 +1757,16 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn 
       const doneCol = by === 'status' && c.key === 'done';
       const shown = doneCol && !allDone ? list.slice(0, 8) : list;
       const mins = list.filter((t) => t.status !== 'done').reduce((a, t) => a + remainingMin(t), 0);
-      return html`<section key=${c.key} data-col=${c.key} class=${'bcol' + (drag && drag.over === c.key && drag.from !== c.key ? ' over' : '')} aria-label=${c.label}>
-        <div class="bcol-h">
+      const ci = colInfo ? colInfo(c) : null;
+      return html`<section key=${c.key} data-col=${c.key} class=${'bcol' + (ci ? ' ' + ci.cls : '') + (drag && drag.over === c.key && drag.from !== c.key ? ' over' : '')} aria-label=${c.label}>
+        ${ci ? html`<div class="bcol-h stage">
+          <span class="bcol-t"><span class="ss-mark">${ci.mark}</span>${c.label}</span>
+          <span class="muted mono small">${ci.sub}</span>
+          ${ci.risk ? html`<span class=${'small ' + (ci.risk.bad ? 'bad-t' : 'muted')}>${ci.risk.bad ? '⚠ ' : ''}${ci.risk.text}</span>` : null}
+        </div>` : html`<div class="bcol-h">
           <span class="bcol-t">${c.color || color ? html`<span class="pdot" style=${{ background: c.color || color }}></span>` : null}${c.label}</span>
           <span class="muted mono">${list.filter((t) => t.status !== 'done').length || list.length}${mins ? ' · ' + fmtDur(mins) : ''}</span>
-        </div>
+        </div>`}
         <div class="bcol-body">
           ${shown.map((t) => card(t, c))}
           ${doneCol && list.length > 8 ? html`<button class="btn sm ghost" onClick=${() => setAllDone(!allDone)}>${allDone ? 'Show fewer' : 'Show all ' + list.length}</button>` : null}
@@ -1770,12 +1800,15 @@ function ProjectsView(ctx) {
       <${Icon} n="spark" cls="muted" /><input id="goal" value=${goal} onInput=${(e) => setGoal(e.target.value)} placeholder="Describe an outcome: “youth leader retreat by nov 14”, “launch the winter curriculum”" aria-label="Describe a project" /><button class="btn pri sm" type="submit" disabled=${planning}>${planning ? 'Planning…' : 'Draft plan'}</button>
     </form>
     <div class="pgrid" style=${{ marginTop: '20px' }}>
-      ${state.projects.map((p) => { const ts = state.tasks.filter((t) => t.projectId === p.id); const dn = ts.filter((t) => t.status === 'done').length; const end = Math.max(0, ...ts.filter((t) => t.status !== 'done').map((t) => (plan.info[t.id] || {}).end || 0)); const risk = p.deadline && end > p.deadline; const blocked = ts.filter((t) => t.status === 'blocked').length;
+      ${state.projects.map((p) => { const m = projectSummary(p, state, plan, now); const nx = m.next && (plan.info[m.next.id] || {});
         return html`<button key=${p.id} class="panel pcard" style=${{ borderLeft: '3px solid ' + pColor(p.color) }} onClick=${() => setOpen(p.id)}>
-          <div class="muted mono" style=${{ fontSize: '11px' }}>${p.deadline ? 'Target ' + fmtD(p.deadline) : 'No target date'}${p.sample ? ' · example' : ''}</div>
-          <h3>${p.name}</h3>
-          <div class="bar" style=${{ marginTop: 0 }}><i style=${{ width: (ts.length ? dn / ts.length * 100 : 0) + '%' }}></i></div>
-          <div class="stat"><span class="pill">${dn}/${ts.length} done</span>${risk ? html`<span class="pill bad">At risk</span>` : ts.length ? html`<span class="pill ok">On track</span>` : null}${blocked ? html`<span class="pill warn">${blocked} blocked</span>` : null}${end ? html`<span class="pill">Finishes ${relD(end, now)}</span>` : null}</div>
+          <div class="pc-top"><h3>${p.name}</h3><span class=${'pc-health ' + (m.health === 'At risk' ? 'bad' : m.health === 'On track' || m.health === 'Done' ? 'ok' : '')}>${m.health}</span></div>
+          ${p.desc ? html`<div class="pc-desc">${p.desc.split('\n')[0].slice(0, 90)}</div>` : null}
+          ${m.ts.length ? html`<div class="pc-sec"><span class="eyebrow">${m.current ? m.current || 'Tasks' : m.open.length ? 'In progress' : 'All stages done'}</span>
+            <div class="bar" style=${{ margin: '4px 0 0' }}><i style=${{ width: m.pct + '%', background: pColor(p.color) }}></i></div></div>` : null}
+          ${m.blocked.length ? html`<div class="pc-sec"><span class="eyebrow warn-t">Blocked</span><span class="pc-line">${m.blocked[0].title}${m.blocked.length > 1 ? ' +' + (m.blocked.length - 1) : ''}</span></div>`
+            : m.next ? html`<div class="pc-sec"><span class="eyebrow">Next</span><span class="pc-line">${m.next.title}${nx.first ? html` <span class="muted">· ${relD(nx.first, now)} ${fmtT(nx.first)}</span>` : nx.unscheduled ? html` <span class="bad-t">· no room</span>` : ''}</span></div>` : null}
+          <div class="pc-foot">${[m.open.length ? fmtDur(m.mins) + ' left' : null, p.deadline ? fmtD(p.deadline).slice(4) : 'No target', m.open.length && m.buffer != null ? html`<span class=${m.buffer < 0 ? 'bad-t' : ''}>${m.buffer < 0 ? 'projected ' + fmtBuffer(m.buffer) : fmtBuffer(m.buffer)}</span>` : m.unplaced ? html`<span class="bad-t">${m.unplaced} don’t fit</span>` : null, p.sample ? 'example' : null].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}</div>
         </button>`; })}
       <button class="panel pcard" style=${{ borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', color: 'var(--ink-3)', minHeight: '120px' }} onClick=${() => setNewOpen(true)}><${Icon} n="plus" cls="" /> New project</button>
     </div>
@@ -1786,6 +1819,30 @@ function ProjectsView(ctx) {
 const pColor = (c) => P_COLORS[c] || P_COLORS.gray;
 const P_COLORS = { gray: '#8a8a8a', blue: '#6f9ce8', purple: '#a58be6', green: '#72c08a', amber: '#e0a24a', red: '#ec7b70' };
 const P_STATUS = { planning: 'Planning', active: 'In progress', hold: 'On hold', done: 'Done' };
+/* Everything the project card and page show, computed from the plan (nothing stored). */
+function projectSummary(p, state, plan, now) {
+  const ts = state.tasks.filter((t) => t.projectId === p.id);
+  const info = (t) => plan.info[t.id] || {};
+  const open = ts.filter((t) => t.status !== 'done');
+  const stages = projectStages(p, ts);
+  const stat = (name) => {
+    const st = ts.filter((t) => (t.stage || '') === name), op = st.filter((t) => t.status !== 'done');
+    const end = Math.max(0, ...op.map((t) => info(t).end || 0));
+    const lateMs = Math.max(0, ...op.map((t) => (info(t).late && t.deadline && info(t).end ? info(t).end - t.deadline : 0)), p.deadline && end > p.deadline ? end - p.deadline : 0);
+    return { total: st.length, done: st.length - op.length, mins: op.reduce((a, t) => a + remainingMin(t), 0), end, lateDays: lateMs ? Math.max(1, Math.ceil(lateMs / DAY)) : 0, unplaced: op.filter((t) => info(t).unscheduled).length };
+  };
+  const current = stages.find((x) => { const r = stat(x); return r.total && r.done < r.total; });
+  const finish = Math.max(0, ...open.map((t) => info(t).end || 0));
+  const unplaced = open.filter((t) => info(t).unscheduled).length;
+  const late = open.some((t) => info(t).late) || !!(p.deadline && finish > p.deadline) || (!!p.deadline && unplaced > 0);
+  const buffer = p.deadline && finish ? Math.floor((sod(p.deadline) - sod(finish)) / DAY) : null;
+  const next = open.slice().sort((a, b) => (b.status === 'doing') - (a.status === 'doing') || (a.status === 'blocked') - (b.status === 'blocked') || (info(a).first || 9e15) - (info(b).first || 9e15))[0];
+  const blocked = open.filter((t) => t.status === 'blocked');
+  return { ts, open, stages, stat, current, finish, late, buffer, next, blocked, unplaced, mins: open.reduce((a, t) => a + remainingMin(t), 0), pct: ts.length ? Math.round((ts.length - open.length) / ts.length * 100) : 0,
+    health: !ts.length ? 'No tasks yet' : p.status === 'done' || !open.length ? 'Done' : late ? 'At risk' : 'On track' };
+}
+const fmtBuffer = (b) => (b == null ? '' : b > 0 ? '+' + b + 'd buffer' : b === 0 ? 'no buffer' : Math.abs(b) + 'd late');
+
 /* Stages in order: the project's saved list, then any stage names found only on tasks. */
 function projectStages(p, ts) {
   const names = [...(p.stages || [])];
@@ -1850,12 +1907,16 @@ function ProjectDetail(ctx) {
   const [nt, setNt] = useState('');
   const [newStage, setNewStage] = useState(null);
   const [showProps, setShowProps] = useState(false);
-  const [view, setView2] = useState(() => { try { return localStorage.getItem('steward.pview') || 'list'; } catch (e) { return 'list'; } });
+  const [view, setView2] = useState(() => { try { return localStorage.getItem('steward.pview2') || 'board'; } catch (e) { return 'board'; } });
   const [sugg, setSugg] = useState(null);
   const [sugBusy, setSugBusy] = useState(false);
-  const pickView = (v) => { setView2(v); try { localStorage.setItem('steward.pview', v); } catch (e) {} };
-  const [pby, setPby] = useState(() => { try { return localStorage.getItem('steward.pby') || 'stage'; } catch (e) { return 'stage'; } });
+  const pickView = (v) => { setView2(v); try { localStorage.setItem('steward.pview2', v); } catch (e) {} };
+  const [pby, setPby] = useState(() => { try { const v = localStorage.getItem('steward.pby'); return v === 'status' ? v : 'stage'; } catch (e) { return 'stage'; } });
+  const boardRef = useRef();
   const pickPby = (v) => { setPby(v); try { localStorage.setItem('steward.pby', v); } catch (e) {} };
+  const m = p ? projectSummary(p, state, plan, now) : null;
+  // Open the board at the current stage.
+  useEffect(() => { const el = boardRef.current && m && boardRef.current.querySelector('[data-col="' + ((m.current || '_').replace(/"/g, '')) + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'start' }); }, [p && p.id, view, pby]);
   if (!p) { back(); return null; }
   const ts = state.tasks.filter((t) => t.projectId === p.id);
   const notes = state.notes.filter((n) => n.projectId === p.id);
@@ -1919,47 +1980,47 @@ function ProjectDetail(ctx) {
   return html`<div>
     <button class="btn sm ghost" onClick=${back} style=${{ marginBottom: '10px' }}><${Icon} n="left" />Projects</button>
     <${PlaybookOffer} p=${p} state=${state} commit=${commit} setToast=${ctx.setToast} />
-    <header class="phero" style=${{ '--c': color }}>
-      <div class="ring" style=${{ '--p': pct }} aria-label=${pct + '% done'}><span>${pct}<small>%</small></span></div>
-      <div class="phero-main">
-        <input id="p-name" class="title-in" value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
-        <div class="stats">
-          <div><b>${open.length}</b><span>tasks left</span></div>
-          <div><b>${hoursLeft >= 10 ? Math.round(hoursLeft) : Math.round(hoursLeft * 10) / 10}h</b><span>of work left</span></div>
-          <div class=${daysLeft != null && daysLeft < 0 ? 'bad' : late ? 'warn' : ''}><b>${daysLeft == null ? '—' : daysLeft < 0 ? Math.abs(daysLeft) + 'd' : daysLeft + 'd'}</b><span>${daysLeft == null ? 'no deadline' : daysLeft < 0 ? 'overdue' : 'to deadline'}</span></div>
-          <div><b>${finish ? relD(finish, now) : '—'}</b><span>projected finish</span></div>
-        </div>
+    <header class="ph2" style=${{ '--c': color }}>
+      <div class="ph2-top"><input id="p-name" class="title-in" value=${p.name} onInput=${(e) => up({ name: e.target.value })} aria-label="Project name" />
+        <span class=${'pc-health big ' + (m.health === 'At risk' ? 'bad' : m.health === 'On track' || m.health === 'Done' ? 'ok' : '')}>${m.health}</span></div>
+      ${p.desc ? html`<div class="pc-desc">${p.desc.split('\n')[0].slice(0, 140)}</div>` : null}
+      <div class="ph2-line">${[current !== undefined ? html`<b>${current || 'Tasks'}</b>` : ts.length ? html`<b>All stages done</b>` : null, open.length ? fmtDur(m.mins) + ' left' : null, p.deadline ? 'target ' + fmtD(p.deadline).slice(4) : 'no target date', finish ? 'projected ' + relD(finish, now) : null, open.length && m.buffer != null ? html`<span class=${m.buffer < 0 ? 'bad-t' : ''}>${fmtBuffer(m.buffer)}</span>` : null, m.unplaced ? html`<span class="bad-t">${m.unplaced} task${m.unplaced === 1 ? '' : 's'} don’t fit</span>` : null].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}</div>
+      <div class="ph2-acts">
+        ${nextT ? html`${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start next task</button>` : html`<span class="pill">In progress</span>`}
+          <button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: nextT.id })}>${nextT.title}<span class="muted"> · ${fmtDur(remainingMin(nextT))}${info(nextT).first ? ' · ' + relD(info(nextT).first, now) + ' ' + fmtT(info(nextT).first) : ''}</span></button>` : null}
       </div>
-      ${nextT ? html`<div class="upnext">
-        <span class="eyebrow">${nextT.status === 'doing' ? 'In progress' : 'Up next'}</span>
-        <button class="tt" onClick=${() => setDrawer({ type: 'task', id: nextT.id })}>${nextT.title}</button>
-        <span class="muted small">${fmtDur(remainingMin(nextT))}${info(nextT).first ? ' · ' + relD(info(nextT).first, now) + ' ' + fmtT(info(nextT).first) : ''}</span>
-        <div class="acts">${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start now</button>` : null}<button class="btn sm" onClick=${() => A.toggleDone(nextT.id)}><${Icon} n="check" />Done</button></div>
-      </div>` : null}
+      ${m.stages.filter((x) => m.stat(x).total).length > 1 ? html`<div class="sstrip">${m.stages.filter((x) => m.stat(x).total).map((x) => { const r = m.stat(x); const st = r.done === r.total ? 'done' : x === current ? 'cur' : 'fut'; return html`<div key=${x} class=${'ss ' + st}><span class="ss-mark">${st === 'done' ? '✓' : st === 'cur' ? '●' : '○'}</span><span class="ss-n">${x || 'Tasks'}</span></div>`; })}</div>` : null}
     </header>
-    <div class=${'pd' + (view !== 'list' ? ' wide' : '')}>
-      <section class="pd-main">
-        <textarea class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project, and what does done look like?" aria-label="Project description"></textarea>
+    <div class="pd2">
+      <aside class="pd-rail">
+      <section class="pd-props">
+        <div class="kv pd-facts">
+          <label>Status</label><span>${P_STATUS[p.status || 'active']}</span>
+          <label>Target</label><span>${p.deadline ? fmtD(p.deadline) : '—'}</span>
+          <label>Remaining</label><span>${open.length ? fmtDur(m.mins) + ' · ' + open.length + ' task' + (open.length === 1 ? '' : 's') : '—'}</span>
+          <label>Projected</label><span class=${late ? 'bad-t' : ''}>${finish ? fmtD(finish) : '—'}</span>
+          ${m.buffer != null && open.length ? html`<label>Buffer</label><span class=${m.buffer < 0 ? 'bad-t' : ''}>${m.buffer >= 0 ? m.buffer + 'd' : fmtBuffer(m.buffer)}</span>` : null}
+          <label>Done</label><span>${done}/${ts.length} tasks</span>
+        </div>
+        <button class="pd-sum" onClick=${() => setShowProps(!showProps)} aria-expanded=${showProps}><span class="muted small">${showProps ? 'Hide details' : 'Edit details'}</span><span style=${{ flex: 1 }}></span><span class="chev" aria-hidden="true">${showProps ? '▴' : '▾'}</span></button>
+        ${showProps ? html`<${ProjectFields} v=${{ ...p, start }} set=${up} stageText=${current !== undefined ? (current || 'Tasks') : (ts.length ? 'All stages done' : '—')} />` : null}
+      </section>
+      <section class="pd-about">
+        <label class="eyebrow" for="p-desc">About</label>
+        <textarea id="p-desc" class="pd-desc" value=${p.desc || p.goal || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="What is this project?" aria-label="About this project"></textarea>
+        <label class="eyebrow" for="p-done">Done looks like</label>
+        <textarea id="p-done" class="pd-desc sm" value=${p.doneDef || ''} onInput=${(e) => up({ doneDef: e.target.value })} placeholder="How will you know it’s finished?" aria-label="What done looks like"></textarea>
       </section>
       <section class="pd-docs">
-        <div class="grp" style=${{ display: 'flex', alignItems: 'center', marginTop: 0 }}>Docs · ${notes.length}<span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${newDoc}><${Icon} n="plus" />Create doc</button></div>
+        <div class="grp" style=${{ display: 'flex', alignItems: 'center', marginTop: 0 }}>Related · ${notes.length} doc${notes.length === 1 ? '' : 's'}<span style=${{ flex: 1 }}></span><button class="btn sm ghost" onClick=${newDoc}><${Icon} n="plus" />Create doc</button></div>
         <div class="panel rows">${notes.length ? notes.map((n) => html`<div key=${n.id} class="row click" onClick=${() => ctx.setView('notes')}><span></span><div class="t"><b>${n.title}</b><small>Updated ${relD(n.updated, now)}</small></div><span></span></div>`) : html`<div class="empty">No docs yet. Create one, or link a note to this project from Notes.</div>`}</div>
         <button class="btn sm danger ghost" style=${{ marginTop: '18px' }} onClick=${() => { A.delProject(p.id); back(); }}>Delete project</button>
       </section>
-
-      <section class="pd-props">
-        <button class="pd-sum" onClick=${() => setShowProps(!showProps)} aria-expanded=${showProps}>
-          <span class=${'dot ' + (late ? 'bad' : 'ok')}></span>
-          <b>${ts.length ? (late ? 'At risk' : p.status === 'done' ? 'Done' : 'On track') : 'No tasks yet'}</b>
-          <span class="muted">${[P_STATUS[p.status || 'active'], PRI_LABEL[p.priority || 'med'], p.deadline ? 'Due ' + fmtD(p.deadline).slice(4) : null, ts.length ? done + '/' + ts.length + ' done' : null].filter(Boolean).join(' · ')}</span>
-          <span style=${{ flex: 1 }}></span><span class="muted small">${showProps ? 'Hide' : 'Details'}</span><${Icon} n=${showProps ? 'left' : 'right'} />
-        </button>
-        ${showProps ? html`<${ProjectFields} v=${{ ...p, start }} set=${up} stageText=${current !== undefined ? (current || 'Tasks') : (ts.length ? 'All stages done' : '—')} />` : null}
-      </section>
+      </aside>
 
       <section class="pd-tasks">
         <div class="vtabs">
-          ${[['list', 'List'], ['board', 'Board'], ['timeline', 'Timeline']].map(([k, l]) => html`<button key=${k} class=${view === k ? 'on' : ''} onClick=${() => pickView(k)}>${l}</button>`)}
+          ${[['board', 'Board'], ['list', 'List'], ['timeline', 'Timeline']].map(([k, l]) => html`<button key=${k} class=${view === k ? 'on' : ''} onClick=${() => pickView(k)}>${l}</button>`)}
           <span style=${{ flex: 1 }}></span>
           ${aiOn ? html`<button class="btn sm ghost" disabled=${sugBusy} onClick=${suggest}><${Icon} n="spark" />${sugBusy ? 'Thinking…' : 'Suggest tasks'}</button>` : null}
         </div>
@@ -1968,10 +2029,12 @@ function ProjectDetail(ctx) {
           ${sugg.map((x) => html`<label class="it" key=${x.id}><input type="checkbox" checked=${x.on} onChange=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, on: e.target.checked } : y))} /><input type="text" value=${x.text} onInput=${(e) => setSugg(sugg.map((y) => y.id === x.id ? { ...y, text: e.target.value } : y))} aria-label="Suggested task" /></label>`)}
           <div class="acts">${sugg.length ? html`<button class="btn pri sm" onClick=${addSugg} disabled=${!sugg.some((x) => x.on)}>Add ${sugg.filter((x) => x.on).length} to ${current ? '“' + current + '”' : 'this project'}</button>` : null}<button class="btn sm ghost" onClick=${() => setSugg(null)}>Dismiss</button></div>
         </div>` : null}
-        ${view === 'board' ? html`<div class="kb-bar"><span class="muted" style=${{ fontSize: '12px' }}>Columns</span><${BoardBy} by=${pby} set=${pickPby} opts=${[['stage', 'Stage'], ['status', 'Status'], ['priority', 'Priority']]} /></div>
-        <${Kanban} ...${ctx} by=${pby} ts=${ts} p=${p} color=${color} onAddColumn=${pby === 'stage' ? () => html`<div class="bcol bcol-new">${newStage !== null
+        ${view === 'board' ? html`<div class="kb-bar"><span class="muted" style=${{ fontSize: '12px' }}>Columns</span><${BoardBy} by=${pby} set=${pickPby} opts=${[['stage', 'Stage'], ['status', 'Status']]} /></div>
+        <div ref=${boardRef} style=${{ "--c": color }}><${Kanban} ...${ctx} by=${pby} ts=${ts} p=${p} color=${color} colInfo=${pby === 'stage' ? (c) => { const x = c.key === '_' ? '' : c.key; const r = m.stat(x); if (!r.total) return null; const st = r.done === r.total ? 'done' : x === current ? 'cur' : 'fut';
+          return { cls: 'st-' + st, mark: st === 'done' ? '✓' : st === 'cur' ? '●' : '○', sub: [r.done + '/' + r.total + ' done', r.mins ? fmtDur(r.mins) + ' left' : null].filter(Boolean).join(' · '),
+            risk: st === 'done' ? null : r.lateDays ? { bad: true, text: 'Expected ' + r.lateDays + ' day' + (r.lateDays === 1 ? '' : 's') + ' late' } : r.unplaced ? { bad: true, text: r.unplaced + ' don’t fit yet' } : r.end ? { text: 'Projected done ' + relD(r.end, now) } : null }; } : null} onAddColumn=${pby === 'stage' ? () => html`<div class="bcol bcol-new">${newStage !== null
           ? html`<form class="stg-add" onSubmit=${(e) => { e.preventDefault(); addStage(); }}><input autoFocus class="in" value=${newStage} onInput=${(e) => setNewStage(e.target.value)} onBlur=${() => { if (!newStage.trim()) setNewStage(null); }} placeholder="Stage name" aria-label="New stage" /></form>`
-          : html`<button class="btn sm ghost stg-plus" onClick=${() => setNewStage('')}><${Icon} n="plus" />Add stage</button>`}</div>` : null} />`
+          : html`<button class="btn sm ghost stg-plus" onClick=${() => setNewStage('')}><${Icon} n="plus" />Add stage</button>`}</div>` : null} /></div>`
         : view === 'timeline' ? html`<div class="gantt" style=${{ '--c': color }}>
           <div class="g-axis"><span>${fmtD(g0).slice(4)}</span><span>${fmtD(g1).slice(4)}</span></div>
           <div class="g-today" style=${{ left: (38 + gp(now) * 0.62) + '%' }}></div>
