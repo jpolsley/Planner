@@ -42,8 +42,8 @@ const KIN_BASE = 'You are Diana (D.I.A.N.A.: Digital Intelligence for Adaptive N
   + 'Only suggest tasks when the user asks for tasks or a plan. Then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant (this is the one place a list is allowed). '
   + 'Use the facts, documents, and planner snapshot provided; mention a document by name when you draw on it; never invent tasks, meetings, documents, or facts about the user.'
   + '\n\nYou can change the planner, but only when the user asks you to (e.g. "move my admin tasks to Friday", "mark the venue done", "add a meeting with Sam tomorrow at 2"). Then say briefly what you will change and end the reply with a block exactly like:\n```actions\n[{"op":"update","task":"T3","due":"2026-10-02"}]\n```\n'
-  + 'Ops: {"op":"add","title":"...","minutes":30,"due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","priority":"asap|high|med|low","project":"project name"}; {"op":"update","task":"T#","title","minutes","due","start":"YYYY-MM-DD (don\'t start before)","priority","status":"todo|doing|blocked"} (only the fields that change; "due":null clears it); {"op":"done","task":"T#"}; {"op":"delete","task":"T#"}; {"op":"meeting","title":"...","start":"YYYY-MM-DDTHH:MM","minutes":30}; {"op":"move_meeting","meeting":"M#","start":"YYYY-MM-DDTHH:MM"}. '
-  + 'Use only the T# and M# references from the planner snapshot. The user reviews and confirms every change, so never claim it is already done. Never include an actions block when the user did not ask for a change.';
+  + 'Ops: {"op":"project","name":"...","desc":"what it is and what done looks like","due":"YYYY-MM-DD","stages":["Stage 1","Stage 2"]} (a new project; put it before any tasks added to it); {"op":"add","title":"...","minutes":30,"due":"YYYY-MM-DD or YYYY-MM-DDTHH:MM","priority":"asap|high|med|low","project":"project name","stage":"stage name"}; {"op":"update","task":"T#","title","minutes","due","start":"YYYY-MM-DD (don\'t start before)","priority","status":"todo|doing|blocked"} (only the fields that change; "due":null clears it); {"op":"done","task":"T#"}; {"op":"delete","task":"T#"}; {"op":"meeting","title":"...","start":"YYYY-MM-DDTHH:MM","minutes":30}; {"op":"move_meeting","meeting":"M#","start":"YYYY-MM-DDTHH:MM"}. '
+  + 'Use only the T# and M# references from the planner snapshot. The user reviews and confirms every change, so never claim it is already done. If you say you will add or change anything, the actions block is required; if no op can do it, say so plainly instead. Never include an actions block when the user did not ask for a change.';
 
 const kinLoad = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const kinSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -243,6 +243,7 @@ async function kinLearnFrom(userText, reply) {
   const text = await kinAI.ask({ messages: [{ role: 'system', content: 'You extract facts. Output only the list or NONE.' }, { role: 'user', content: prompt }], maxTokens: 90, temperature: 0, docs: false });
   if (/^\s*none\b/i.test(text)) return [];
   return text.split('\n').map((l) => l.match(/^\s*[-*•]\s*(You\b.{3,180})$/i)).filter(Boolean)
+    .filter((m) => !/\b(seeking|asking|asked|request|wants? (me |you )?to|would like (me |you )?to|trying to (add|create|make)|looking to)\b/i.test(m[1]))
     .map((m) => kinMem.add(m[1].replace(/\.?\s*$/, '.'), 'chat')).filter(Boolean).slice(0, 3);
 }
 
@@ -299,7 +300,8 @@ function describeAction(a, refs, state) {
   const ev = (r) => state.events.find((e) => e.id === refs[r]);
   const when = (v) => { const t = parseDue(v, state); return t ? fmtD(t) + (/T\d/.test(v) ? ' ' + fmtT(t) : '') : v; };
   const t = a.task && task(a.task);
-  if (a.op === 'add') return 'Add “' + a.title + '”' + (a.minutes ? ', ' + fmtDur(+a.minutes) : '') + (a.due ? ', due ' + when(a.due) : '') + (a.priority && a.priority !== 'med' ? ', ' + (PRI_LABEL[a.priority] || a.priority) : '') + (a.project ? ', in ' + a.project : '');
+  if (a.op === 'project') return 'Create project “' + a.name + '”' + (a.due ? ', due ' + when(a.due) : '') + (Array.isArray(a.stages) && a.stages.length ? ', stages: ' + a.stages.join(' → ') : '');
+  if (a.op === 'add') return 'Add “' + a.title + '”' + (a.minutes ? ', ' + fmtDur(+a.minutes) : '') + (a.due ? ', due ' + when(a.due) : '') + (a.priority && a.priority !== 'med' ? ', ' + (PRI_LABEL[a.priority] || a.priority) : '') + (a.project ? ', in ' + a.project + (a.stage ? ' › ' + a.stage : '') : '');
   if (a.op === 'meeting') return 'Add meeting “' + a.title + '” ' + when(a.start) + (a.minutes ? ' for ' + fmtDur(+a.minutes) : '');
   if (a.op === 'move_meeting') { const e = a.meeting && ev(a.meeting); return e ? (e.src ? '✕ “' + e.title + '” is from your calendar; change it there' : 'Move “' + e.title + '” to ' + when(a.start)) : null; }
   if (!t) return null;
@@ -565,9 +567,19 @@ function AssistantView(ctx) {
       const { system, history, meta } = guardRequest({ msgs: prior, text, baseSystem: base, variant: guardVariant(), state, plan, refs });
       const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
       reply = r.text;
-      const acts = mode === 'plan' ? [] : chatActions(reply).actions;
-      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: actx ? { type: actx.type, id: actx.id, view: actx.view } : { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps) } });
-      patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool) }));
+      let acts = mode === 'plan' ? [] : chatActions(reply).actions;
+      // She said she'd change something but gave no changes: ask once for just the changes, else say so.
+      let repaired = null;
+      if (mode !== 'plan' && !acts.length && /\b(i'll|i will|i've|i have|let me|i'm going to|i can)\s+(go ahead and\s+)?(add|create|set up|make|move|mark|schedule|update|put)\b/i.test(reply)) {
+        try {
+          const fix = await kinAI.ask({ messages: [{ role: 'system', content: system }, ...history, { role: 'assistant', content: reply }, { role: 'user', content: '[Steward, not the user:] Your reply says you will make a change but has no actions block. Reply with ONLY the ```actions block for exactly what you said, using the ops listed. If no op can do it, reply NONE.' }], maxTokens: 400, temperature: 0, docs: false });
+          acts = chatActions(fix).actions;
+          repaired = acts.length ? 'fixed' : 'none';
+          if (acts.length) reply = reply.replace(/\s*$/, '') + '\n\n' + fix.match(/```\s*actions[\s\S]*?```/i)[0];
+        } catch (e) { repaired = 'error'; }
+      }
+      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: actx ? { type: actx.type, id: actx.id, view: actx.view } : { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps), repaired } });
+      patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool), note: repaired === 'none' || repaired === 'error' ? 'Diana didn’t actually change anything. Try asking again, or make the change yourself.' : null }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
         const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
         const said = acts.map((a) => describeAction(a, refs, state)).filter(Boolean);
@@ -671,6 +683,7 @@ function AssistantView(ctx) {
           ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '4px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
           ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
           ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
+          ${x.note ? html`<div class="small" style=${{ marginTop: '6px', color: 'var(--warn)' }}>${x.note}</div>` : null}
           ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
         </div>`)}
         ${pendingText ? html`<div style=${{ alignSelf: 'flex-end', maxWidth: '85%' }}><div style=${{ whiteSpace: 'pre-wrap', padding: '10px 13px', borderRadius: '12px', background: 'var(--accent-soft)' }}>${pendingText}</div><div class="small muted" style=${{ marginTop: '4px', textAlign: 'right' }}>Steward is loading, and will reply when it’s ready…</div></div>` : null}
