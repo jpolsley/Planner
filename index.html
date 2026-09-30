@@ -251,6 +251,9 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .dr-more{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:14px 0 2px;color:var(--ink);font:600 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;text-align:left;cursor:pointer}
 .dr-more .small{text-transform:none;letter-spacing:0;font:400 12px var(--f-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dr-more .chev{color:var(--ink-3)}
 .dr-details{display:flex;flex-direction:column;gap:14px}
+.ktag{font:600 10px var(--f-mono);text-transform:uppercase;letter-spacing:.07em}.k-dec{color:var(--meet-ink)!important}.k-wait{color:var(--warn)!important}
+.dr-kind{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.seg.sm button{padding:3px 10px;font-size:12px}.in.sm{padding:4px 8px;font-size:12.5px}
+.ph2-flags{display:flex;flex-direction:column;gap:6px;margin-top:6px}.ph2-flag{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ph2-flag .eyebrow{font:500 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.1em;min-width:104px}
 .pc-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
 .pc-health{font:600 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);white-space:nowrap;padding-top:4px}.pc-health.ok{color:var(--good)}.pc-health.bad{color:var(--bad)}.pc-health.big{font-size:11.5px}
 .pc-desc{color:var(--ink-2);font-size:13px;margin-top:-4px}
@@ -1444,6 +1447,8 @@ function taskFilter(k, t, plan, now) {
   if (k === 'risk') return !!inf.late || !!(t.deadline && t.deadline < now);
   return true;
 }
+/* Decisions and things you're waiting on someone for. Marked by the user, never guessed. */
+const kindTag = (t) => (t.status === 'done' ? null : t.kind === 'decision' ? { cls: 'k-dec', text: 'Decision' } : t.kind === 'waiting' ? { cls: 'k-wait', text: 'Waiting on ' + (t.waitingOn || 'someone') } : null);
 const projStage = (t, state) => { const p = state.projects.find((x) => x.id === t.projectId); return p ? p.name + (t.stage ? ' › ' + t.stage : '') : ''; };
 
 function TaskRow({ t, plan, now, A, setDrawer, state }) {
@@ -1453,7 +1458,7 @@ function TaskRow({ t, plan, now, A, setDrawer, state }) {
   return html`<div class=${'row click trow' + (t.status === 'blocked' ? ' blk-t' : '')} onClick=${() => setDrawer({ type: 'task', id: t.id })}>
     <button class=${'chk' + (t.status === 'done' ? ' on' : '')} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
     <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.status === 'blocked' ? html`<span class="warn-t">! </span>` : null}${t.title}</b>
-      <small>${ps ? ps + ' · ' : ''}${fmtDur(remainingMin(t) || t.duration || 30)}${t.deadline && t.status !== 'done' ? html` · <span class=${bad || t.deadline < now ? 'bad-t' : ''}>due ${relD(t.deadline, now)}</span>` : ''}${t.priority === 'asap' ? html` · <span class="prio p-asap">ASAP</span>` : ''}${t.status === 'doing' ? ' · in progress' : ''}</small></div>
+      <small>${kindTag(t) ? html`<span class=${'ktag ' + kindTag(t).cls}>${kindTag(t).text}</span> ` : ''}${ps ? ps + ' · ' : ''}${fmtDur(remainingMin(t) || t.duration || 30)}${t.deadline && t.status !== 'done' ? html` · <span class=${bad || t.deadline < now ? 'bad-t' : ''}>due ${relD(t.deadline, now)}</span>` : ''}${t.priority === 'asap' ? html` · <span class="prio p-asap">ASAP</span>` : ''}${t.status === 'doing' ? ' · in progress' : ''}</small></div>
     <span class=${'time twhen ' + w.kind}>${w.text}</span>
   </div>`;
 }
@@ -1575,6 +1580,11 @@ function TaskDrawer(ctx) {
     </div>
     <input id="t-title" class="title-in" value=${t.title} onInput=${(e) => up({ title: e.target.value })} aria-label="Task name" />
     ${projStage(t, state) ? html`<div class="dr-ctx">${projStage(t, state)}</div>` : null}
+    ${t.status !== 'done' ? html`<div class="dr-kind">
+      <div class="seg sm" role="group" aria-label="What kind of task">${[[null, 'Task'], ['decision', 'Decision'], ['waiting', 'Waiting on']].map(([k, l]) => html`<button key=${l} class=${(t.kind || null) === k ? 'on' : ''} aria-pressed=${(t.kind || null) === k} onClick=${() => up({ kind: k })}>${l}</button>`)}</div>
+      ${t.kind === 'waiting' ? html`<input class="in sm" value=${t.waitingOn || ''} onInput=${(e) => up({ waitingOn: e.target.value })} placeholder="Who? e.g. Peggy" aria-label="Waiting on who" style=${{ width: '150px' }} />
+        <button class="btn sm" onClick=${() => up({ kind: null, waitingOn: null })}><${Icon} n="check" />Got a response</button>` : null}
+    </div>` : null}
     <div class="dr-when">
       ${t.status === 'done' ? html`<b>Completed ${t.completed ? relD(t.completed, now) : ''}</b>`
         : t.status === 'blocked' ? html`<b class="warn-t">Blocked</b>`
@@ -1586,6 +1596,7 @@ function TaskDrawer(ctx) {
     <div class="dr-acts">
       ${t.status !== 'done' ? (t.timer ? html`<button class="btn sm pri" onClick=${() => A.pauseTimer(t.id)}>Pause work</button>` : html`<button class="btn sm pri" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start work</button>`) : null}
       ${t.status !== 'done' ? html`<button class="btn sm ghost" aria-expanded=${why} onClick=${() => setWhy(!why)}>${inf.unscheduled ? 'Why no room?' : 'Why here?'}</button>` : null}
+      ${typeof openDiana === 'function' ? html`<button class="btn sm ghost" onClick=${() => { openDiana(ctx.setView, { type: 'task', id: t.id, view: 'task' }, t.kind === 'decision' && t.status !== 'done' ? 'Help me decide: ' + t.title : null); onClose(); }}><${Icon} n="spark" />${t.kind === 'decision' && t.status !== 'done' ? 'Decide with Diana' : 'Ask Diana'}</button>` : null}
       ${trackedMin(t, now) >= 1 ? html`<span class="muted small">Tracked ${fmtDur(Math.round(trackedMin(t, now)))} of ${fmtDur(t.duration || 30)}</span>` : null}
     </div>
     ${why && t.status !== 'done' ? html`<div class="why">
@@ -1739,6 +1750,7 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn,
         <button class="ck" onPointerDown=${(e) => e.stopPropagation()} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
         <b>${t.title}</b>
       </div>
+      ${kindTag(t) ? html`<span class="bc-sub"><span class=${'ktag ' + kindTag(t).cls}>${kindTag(t).text}</span></span>` : null}
       ${sub ? html`<span class="bc-sub">${pr ? html`<span class="pdot" style=${{ background: pColor(pr.color) }}></span>` : null}${sub}</span>` : null}
       ${t.status !== 'done' ? html`<span class="bc-meta">
         ${flag ? html`<span class=${w.kind === 'blocked' ? 'warnc caps' : 'bad caps'}>${w.text}</span>` : w.kind === 'ok' || w.kind === 'late' ? html`<span class="bc-when">${w.text}</span>` : null}
@@ -1806,6 +1818,8 @@ function ProjectsView(ctx) {
           ${p.desc ? html`<div class="pc-desc">${p.desc.split('\n')[0].slice(0, 90)}</div>` : null}
           ${m.ts.length ? html`<div class="pc-sec"><span class="eyebrow">${m.current ? m.current || 'Tasks' : m.open.length ? 'In progress' : 'All stages done'}</span>
             <div class="bar" style=${{ margin: '4px 0 0' }}><i style=${{ width: m.pct + '%', background: pColor(p.color) }}></i></div></div>` : null}
+          ${m.decision ? html`<div class="pc-sec"><span class="eyebrow k-dec">Next decision</span><span class="pc-line">${m.decision.title}</span></div>` : null}
+          ${m.waiting.length ? html`<div class="pc-sec"><span class="eyebrow k-wait">Waiting on</span><span class="pc-line">${m.waiting[0].waitingOn || 'someone'}<span class="muted"> · ${m.waiting[0].title}</span>${m.waiting.length > 1 ? html`<span class="muted"> +${m.waiting.length - 1}</span>` : ''}</span></div>` : null}
           ${m.blocked.length ? html`<div class="pc-sec"><span class="eyebrow warn-t">Blocked</span><span class="pc-line">${m.blocked[0].title}${m.blocked.length > 1 ? ' +' + (m.blocked.length - 1) : ''}</span></div>`
             : m.next ? html`<div class="pc-sec"><span class="eyebrow">Next</span><span class="pc-line">${m.next.title}${nx.first ? html` <span class="muted">· ${relD(nx.first, now)} ${fmtT(nx.first)}</span>` : nx.unscheduled ? html` <span class="bad-t">· no room</span>` : ''}</span></div>` : null}
           <div class="pc-foot">${[m.open.length ? fmtDur(m.mins) + ' left' : null, p.deadline ? fmtD(p.deadline).slice(4) : 'No target', m.open.length && m.buffer != null ? html`<span class=${m.buffer < 0 ? 'bad-t' : ''}>${m.buffer < 0 ? 'projected ' + fmtBuffer(m.buffer) : fmtBuffer(m.buffer)}</span>` : m.unplaced ? html`<span class="bad-t">${m.unplaced} don’t fit</span>` : null, p.sample ? 'example' : null].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}</div>
@@ -1838,7 +1852,9 @@ function projectSummary(p, state, plan, now) {
   const buffer = p.deadline && finish ? Math.floor((sod(p.deadline) - sod(finish)) / DAY) : null;
   const next = open.slice().sort((a, b) => (b.status === 'doing') - (a.status === 'doing') || (a.status === 'blocked') - (b.status === 'blocked') || (info(a).first || 9e15) - (info(b).first || 9e15))[0];
   const blocked = open.filter((t) => t.status === 'blocked');
-  return { ts, open, stages, stat, current, finish, late, buffer, next, blocked, unplaced, mins: open.reduce((a, t) => a + remainingMin(t), 0), pct: ts.length ? Math.round((ts.length - open.length) / ts.length * 100) : 0,
+  const decision = open.filter((t) => t.kind === 'decision').sort((a, b) => (info(a).first || 9e15) - (info(b).first || 9e15))[0] || null;
+  const waiting = open.filter((t) => t.kind === 'waiting');
+  return { ts, open, decision, waiting, stages, stat, current, finish, late, buffer, next, blocked, unplaced, mins: open.reduce((a, t) => a + remainingMin(t), 0), pct: ts.length ? Math.round((ts.length - open.length) / ts.length * 100) : 0,
     health: !ts.length ? 'No tasks yet' : p.status === 'done' || !open.length ? 'Done' : late ? 'At risk' : 'On track' };
 }
 const fmtBuffer = (b) => (b == null ? '' : b > 0 ? '+' + b + 'd buffer' : b === 0 ? 'no buffer' : Math.abs(b) + 'd late');
@@ -1988,7 +2004,15 @@ function ProjectDetail(ctx) {
       <div class="ph2-acts">
         ${nextT ? html`${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start next task</button>` : html`<span class="pill">In progress</span>`}
           <button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: nextT.id })}>${nextT.title}<span class="muted"> · ${fmtDur(remainingMin(nextT))}${info(nextT).first ? ' · ' + relD(info(nextT).first, now) + ' ' + fmtT(info(nextT).first) : ''}</span></button>` : null}
+        <span style=${{ flex: 1 }}></span>
+        ${typeof openDiana === 'function' ? html`<button class="btn sm" onClick=${() => openDiana(ctx.setView, { type: 'project', id: p.id, view: 'project' })}><${Icon} n="spark" />Ask Diana</button>` : null}
       </div>
+      ${m.decision || m.waiting.length ? html`<div class="ph2-flags">
+        ${m.decision ? html`<div class="ph2-flag"><span class="eyebrow k-dec">Next decision</span><button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: m.decision.id })}>${m.decision.title}</button>
+          ${typeof openDiana === 'function' ? html`<button class="btn sm ghost" onClick=${() => openDiana(ctx.setView, { type: 'task', id: m.decision.id, view: 'project' }, 'Help me decide: ' + m.decision.title)}><${Icon} n="spark" />Decide with Diana</button>` : null}</div>` : null}
+        ${m.waiting.map((w) => html`<div key=${w.id} class="ph2-flag"><span class="eyebrow k-wait">Waiting on</span><button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: w.id })}>${w.waitingOn || 'someone'}<span class="muted"> · ${w.title}</span></button>
+          <button class="btn sm ghost" onClick=${() => A.updTask(w.id, { kind: null, waitingOn: null })}><${Icon} n="check" />Got a response</button></div>`)}
+      </div>` : null}
       ${m.stages.filter((x) => m.stat(x).total).length > 1 ? html`<div class="sstrip">${m.stages.filter((x) => m.stat(x).total).map((x) => { const r = m.stat(x); const st = r.done === r.total ? 'done' : x === current ? 'cur' : 'fut'; return html`<div key=${x} class=${'ss ' + st}><span class="ss-mark">${st === 'done' ? '✓' : st === 'cur' ? '●' : '○'}</span><span class="ss-n">${x || 'Tasks'}</span></div>`; })}</div>` : null}
     </header>
     <div class="pd2">
