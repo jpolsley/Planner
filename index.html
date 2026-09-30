@@ -236,7 +236,21 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .vtabs>button.on{border-color:var(--line-2);color:var(--ink);background:var(--sunk)}
 .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
 .bcol{flex:0 0 230px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
-.bcol-h{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.bcol-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 2px 9px;border-bottom:1px solid var(--line);margin-bottom:2px}
+.bcol-t{font:600 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink);display:flex;align-items:center;gap:0}.bcol-t .pdot{margin-right:8px}
+.bc-sub{font-size:12px;color:var(--ink-2);padding-left:26px;display:flex;align-items:center;gap:0;min-width:0}.bc-sub .pdot{margin-right:6px;flex:none}
+.bc-meta .bc-when{color:var(--ink-2)}.bc-meta .caps{text-transform:uppercase;letter-spacing:.06em;font-weight:600}.bc-meta .warnc{color:var(--warn)}
+.kb .bcard:hover{border-color:var(--line-2)}
+.warn-t{color:var(--warn)}.bad-t{color:var(--bad)}
+.sumlink{background:none;border:0;padding:0;font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer}.sumlink:hover{color:var(--ink)}
+.twhen.noroom,.twhen.late{color:var(--bad)}.twhen.blocked{color:var(--warn)}.twhen.done,.twhen.none{color:var(--ink-3)}
+.dr-ctx{font-size:13px;color:var(--ink-2);margin-top:-8px}
+.dr-when{display:flex;flex-direction:column;gap:3px}.dr-when b{font:600 17px var(--f-display);display:flex;align-items:center;gap:6px}.dr-when b svg{width:14px;height:14px;color:var(--ink-3)}
+.dr-sub{font-size:13px;color:var(--ink-2)}
+.dr-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dr-more{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:14px 0 2px;color:var(--ink);font:600 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;text-align:left;cursor:pointer}
+.dr-more .small{text-transform:none;letter-spacing:0;font:400 12px var(--f-body);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dr-more .chev{color:var(--ink-3)}
+.dr-details{display:flex;flex-direction:column;gap:14px}
 .bcard{text-align:left;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:3px}
 .bcard .mono{font-size:11px}.bcard.dn b{text-decoration:line-through;color:var(--ink-3)}
 .bcard-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}.bcard-tags .lbl-pill{margin:0}
@@ -1383,14 +1397,39 @@ function AlertRow({ a, A, now, setDrawer, setView }) {
   </div></div></div>`;
 }
 
-function TaskRow({ t, plan, now, A, setDrawer, state }) {
+/* What the schedule means for a task, in one place: used by the list, the board and the drawer. */
+function taskWhen(t, plan, now) {
   const inf = plan.info[t.id] || {};
-  const p = state.projects.find((p) => p.id === t.projectId);
-  const when = t.status === 'done' ? 'Done' : inf.first ? relD(inf.first, now) + ' ' + fmtT(inf.first) : inf.unscheduled ? 'No room' : '—';
-  return html`<div class="row click" onClick=${() => setDrawer({ type: 'task', id: t.id })}>
+  if (t.status === 'done') return { kind: 'done', text: 'Done' };
+  if (t.status === 'blocked') return { kind: 'blocked', text: 'Blocked' };
+  if (inf.unscheduled) return { kind: 'noroom', text: 'No room' };
+  if (inf.first) return { kind: inf.late ? 'late' : 'ok', text: relD(inf.first, now) + ' ' + fmtT(inf.first) };
+  return { kind: 'none', text: '—' };
+}
+const TASK_FILTERS = [['open', 'Open'], ['today', 'Today'], ['week', 'This week'], ['blocked', 'Blocked'], ['noroom', 'Unscheduled'], ['risk', 'At risk'], ['done', 'Done'], ['all', 'All']];
+function taskFilter(k, t, plan, now) {
+  const inf = plan.info[t.id] || {}, open = t.status !== 'done';
+  if (k === 'all') return true;
+  if (k === 'done') return !open;
+  if (!open) return false;
+  if (k === 'today') return (inf.first && inf.first < addDays(sod(now), 1)) || (t.deadline && t.deadline < addDays(sod(now), 1)) || t.status === 'doing';
+  if (k === 'week') return (inf.first && inf.first < addDays(sod(now), 7)) || (t.deadline && t.deadline < addDays(sod(now), 7));
+  if (k === 'blocked') return t.status === 'blocked';
+  if (k === 'noroom') return !!inf.unscheduled;
+  if (k === 'risk') return !!inf.late || !!(t.deadline && t.deadline < now);
+  return true;
+}
+const projStage = (t, state) => { const p = state.projects.find((x) => x.id === t.projectId); return p ? p.name + (t.stage ? ' › ' + t.stage : '') : ''; };
+
+function TaskRow({ t, plan, now, A, setDrawer, state }) {
+  const w = taskWhen(t, plan, now);
+  const ps = projStage(t, state);
+  const bad = w.kind === 'noroom' || w.kind === 'late';
+  return html`<div class=${'row click trow' + (t.status === 'blocked' ? ' blk-t' : '')} onClick=${() => setDrawer({ type: 'task', id: t.id })}>
     <button class=${'chk' + (t.status === 'done' ? ' on' : '')} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
-    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.title}</b><small><span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span> · ${fmtDur(t.duration)}${t.deadline ? ' · due ' + relD(t.deadline, now) : ''}${p ? ' · ' + p.name : ''}${t.status === 'blocked' ? ' · blocked' : ''}${t.status === 'doing' ? ' · in progress' : ''}${(t.checklist || []).length ? ' · ' + t.checklist.filter((x) => x.done).length + '/' + t.checklist.length + ' steps' : ''}${t.repeat ? ' · ' + REPEAT[t.repeat] : ''}${(t.labels || []).map((l) => html` <span class="lbl-pill">${l}</span>`)}</small></div>
-    <span class="time" style=${inf.late || inf.unscheduled ? { color: 'var(--bad)' } : null}>${when}</span>
+    <div class="t"><b style=${t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--ink-3)' } : null}>${t.status === 'blocked' ? html`<span class="warn-t">! </span>` : null}${t.title}</b>
+      <small>${ps ? ps + ' · ' : ''}${fmtDur(remainingMin(t) || t.duration || 30)}${t.deadline && t.status !== 'done' ? html` · <span class=${bad || t.deadline < now ? 'bad-t' : ''}>due ${relD(t.deadline, now)}</span>` : ''}${t.priority === 'asap' ? html` · <span class="prio p-asap">ASAP</span>` : ''}${t.status === 'doing' ? ' · in progress' : ''}</small></div>
+    <span class=${'time twhen ' + w.kind}>${w.text}</span>
   </div>`;
 }
 </script>
@@ -1422,33 +1461,41 @@ function CalendarView(ctx) {
 
 /* ================= Tasks ================= */
 function TasksView(ctx) {
-  const { state, A, runCommand, log, plan } = ctx;
+  const { state, A, runCommand, log, plan, now } = ctx;
   const [filter, setFilter] = useState('open');
   const [group, setGroup] = useState('when');
   const [mode, setMode] = useState(() => { try { return localStorage.getItem('steward.tview') || 'list'; } catch (e) { return 'list'; } });
   const [by, setBy] = useState(() => { try { return localStorage.getItem('steward.tby') || 'status'; } catch (e) { return 'status'; } });
   const keep = (k, v, set) => { set(v); try { localStorage.setItem(k, v); } catch (e) {} };
-  const list = state.tasks.filter((t) => filter === 'all' || (filter === 'open' ? t.status !== 'done' : filter === 'done' ? t.status === 'done' : t.status === filter));
+  const list = state.tasks.filter((t) => taskFilter(filter, t, plan, now));
+  const count = (k) => state.tasks.filter((t) => taskFilter(k, t, plan, now)).length;
+  const summary = [['open', 'open'], ['today', 'today'], ['blocked', 'blocked'], ['noroom', 'unscheduled'], ['risk', 'at risk']].map(([k, l]) => [k, count(k), l]).filter(([k, n]) => k === 'open' || n);
   let groups;
   if (group === 'project') { groups = [...state.projects.map((p) => [p.name, list.filter((t) => t.projectId === p.id)]), ['No project', list.filter((t) => !t.projectId || !state.projects.some((p) => p.id === t.projectId))]]; }
   else if (group === 'priority') groups = ['asap', 'high', 'med', 'low'].map((k) => [PRI_LABEL[k], list.filter((t) => t.priority === k)]);
-  else { const f = (t) => (plan.info[t.id] || {}).first; groups = [['Scheduled', list.filter((t) => f(t)).sort((a, b) => f(a) - f(b))], ['Not placed', list.filter((t) => !f(t) && t.status !== 'done')], ['Done', list.filter((t) => t.status === 'done')]]; }
+  else {
+    const f = (t) => (plan.info[t.id] || {}).first, open = list.filter((t) => t.status !== 'done');
+    const sched = open.filter((t) => f(t) && t.status !== 'blocked').sort((a, b) => f(a) - f(b));
+    const inDay = (d) => sched.filter((t) => sod(f(t)) === d);
+    groups = [['Today', inDay(sod(now))], ['Tomorrow', inDay(addDays(sod(now), 1))], ['Later', sched.filter((t) => f(t) >= addDays(sod(now), 2))],
+      ['Blocked', open.filter((t) => t.status === 'blocked')], ['No room in your schedule', open.filter((t) => !f(t) && t.status !== 'blocked')],
+      ['Done', list.filter((t) => t.status === 'done').sort((a, b) => (b.completed || 0) - (a.completed || 0))]];
+  }
   return html`<div>
-    <header class="hdr"><div><div class="sub">${state.tasks.filter((t) => t.status !== 'done').length} open</div><h1>Tasks</h1></div></header>
+    <header class="hdr"><div><div class="sub">${summary.map(([k, n, l]) => html`<button key=${k} class=${'sumlink' + (k === 'noroom' || k === 'risk' ? ' bad-t' : '')} onClick=${() => { setFilter(k); keep('steward.tview', 'list', setMode); }}>${n} ${l}</button>`).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}</div><h1>Tasks</h1></div></header>
     <${CommandBar} ...${ctx} />
     <div style=${{ display: 'flex', gap: '16px', flexWrap: 'wrap', margin: '18px 0 4px', alignItems: 'center' }}>
       <div class="seg" role="tablist" aria-label="View">${[['list', 'List', 'list'], ['board', 'Board', 'board']].map(([k, l, i]) => html`<button key=${k} role="tab" aria-selected=${mode === k} class=${mode === k ? 'on' : ''} onClick=${() => keep('steward.tview', k, setMode)}><${Icon} n=${i} />${l}</button>`)}</div>
       ${mode === 'board' ? html`<span class="muted" style=${{ fontSize: '12px' }}>Columns</span><${BoardBy} by=${by} set=${(v) => keep('steward.tby', v, setBy)} opts=${[['status', 'Status'], ['priority', 'Priority'], ['project', 'Project']]} />
       ${by !== 'status' ? html`<div class="chips">${[['open', 'Open'], ['all', 'All']].map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>` : null}` : html`
-      <div class="chips">${[['open', 'Open'], ['blocked', 'Blocked'], ['done', 'Done'], ['all', 'All']].map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>
-      <span class="muted" style=${{ fontSize: '12px' }}>Group by</span>
-      <div class="chips">${[['when', 'Schedule'], ['project', 'Project'], ['priority', 'Priority']].map(([k, l]) => html`<button key=${k} class=${'chip' + (group === k ? ' on' : '')} onClick=${() => setGroup(k)}>${l}</button>`)}</div>`}
+      <div class="chips">${TASK_FILTERS.map(([k, l]) => html`<button key=${k} class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>${l}</button>`)}</div>
+      <label class="muted small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}>Group<select class="in" style=${{ width: 'auto', padding: '3px 8px', fontSize: '12.5px' }} value=${group} onChange=${(e) => setGroup(e.target.value)} aria-label="Group by">${[['when', 'By schedule'], ['project', 'By project'], ['priority', 'By priority']].map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></label>`}
       <span style=${{ flex: 1 }}></span>
       <button class="btn sm pri" onClick=${() => { const t = A.addTask({ title: 'New task' }); ctx.setDrawer({ type: 'task', id: t.id }); }}><${Icon} n="plus" />New task</button>
     </div>
     ${mode === 'board' ? html`<div style=${{ marginTop: '14px' }}><${Kanban} ...${ctx} by=${by} ts=${by === 'status' ? state.tasks : state.tasks.filter((t) => filter === 'all' || t.status !== 'done')} /></div>` : html`
     ${groups.filter(([, ts]) => ts.length).map(([g, ts]) => html`<div key=${g}><div class="grp">${g} · ${ts.length}</div><div class="panel rows">${ts.map((t) => html`<${TaskRow} key=${t.id} t=${t} ...${ctx} />`)}</div></div>`)}
-    ${!list.length ? html`<div class="panel empty" style=${{ marginTop: '16px' }}>No tasks here.</div>` : null}`}
+    ${!list.length ? html`<div class="panel empty" style=${{ marginTop: '16px' }}>${{ today: 'Nothing scheduled or due today.', noroom: 'Everything fits in your schedule.', risk: 'Nothing is at risk of missing its deadline.', blocked: 'Nothing is blocked.' }[filter] || 'No tasks here.'}</div>` : null}`}
   </div>`;
 }
 
@@ -1485,6 +1532,9 @@ function TaskDrawer(ctx) {
   const { state, plan, now, A, id, onClose } = ctx;
   const t = state.tasks.find((x) => x.id === id);
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+  const [why, setWhy] = useState(false);
+  const [more, setMoreRaw] = useState(() => { try { return localStorage.getItem('steward.drawer.more') === '1'; } catch (e) { return false; } });
+  const setMore = (v) => { setMoreRaw(v); try { localStorage.setItem('steward.drawer.more', v ? '1' : '0'); } catch (e) {} };
   if (!t) return null;
   const inf = plan.info[t.id] || {};
   const blocks = plan.blocks.filter((b) => b.taskId === t.id);
@@ -1499,15 +1549,31 @@ function TaskDrawer(ctx) {
       <button class="btn sm ghost" onClick=${onClose} aria-label="Close"><${Icon} n="x" /></button>
     </div>
     <input id="t-title" class="title-in" value=${t.title} onInput=${(e) => up({ title: e.target.value })} aria-label="Task name" />
-    <div class="why">
-      ${t.status === 'done' ? html`<b>Completed</b> ${t.completed ? relD(t.completed, now) : ''}` :
-        inf.unscheduled ? html`<b>Not placed.</b> ${inf.reason || fmtDur(Math.round(inf.short || 0)) + ' doesn’t fit in your working hours over the next ' + state.settings.horizon + ' days.'}` :
-        inf.first ? html`<b>Working on it ${relD(inf.first, now)} at ${fmtT(inf.first)}</b>${blocks.length > 1 ? ' across ' + blocks.length + ' blocks' : ''}, finishing ${relD(inf.end, now)} ${fmtT(inf.end)}. ${t.deadline ? (inf.late ? html`<span style=${{ color: 'var(--bad)' }}>That’s after the deadline.</span>` : 'That’s before the ' + relD(t.deadline, now) + ' deadline.') : ''} Chosen as the earliest open time ${inf.why && inf.why.length ? inf.why.join(' and ') : ''} given its ${t.deadline ? 'deadline' : 'priority'}.` : 'Scheduling…'}
+    ${projStage(t, state) ? html`<div class="dr-ctx">${projStage(t, state)}</div>` : null}
+    <div class="dr-when">
+      ${t.status === 'done' ? html`<b>Completed ${t.completed ? relD(t.completed, now) : ''}</b>`
+        : t.status === 'blocked' ? html`<b class="warn-t">Blocked</b>`
+        : inf.unscheduled ? html`<b class="bad-t">No room in your schedule</b>`
+        : blocks.length ? blocks.slice(0, 3).map((bk) => html`<b key=${bk.id}>${relD(bk.start, now)} ${fmtT(bk.start)}–${fmtT(bk.end)}${bk.locked ? html` <${Icon} n="lock" />` : ''}</b>`) : html`<b class="muted">Scheduling…</b>`}
+      ${blocks.length > 3 ? html`<span class="muted small">and ${blocks.length - 3} more block${blocks.length - 3 === 1 ? '' : 's'}</span>` : null}
+      <span class="dr-sub">${[t.deadline ? html`<span class=${inf.late || (t.status !== 'done' && t.deadline < now) ? 'bad-t' : ''}>Due ${relD(t.deadline, now)}${t.hard ? ' (hard)' : ''}</span>` : null, PRI_LABEL[t.priority], fmtDur(t.duration || 30), t.repeat ? REPEAT[t.repeat] : null].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}</span>
     </div>
-    ${t.status !== 'done' || t.spent ? html`<div class="tmr">
-      ${t.status !== 'done' ? (t.timer ? html`<button class="btn sm" onClick=${() => A.pauseTimer(t.id)}>Pause timer</button>` : html`<button class="btn sm" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start timer</button>`) : null}
-      <span class="muted small">${trackedMin(t, now) >= 1 ? 'Tracked ' + fmtDur(Math.round(trackedMin(t, now))) + ' of ' + fmtDur(t.duration || 30) + ' estimated' + ((t.sessions || []).length ? ' · ' + t.sessions.length + ' session' + (t.sessions.length === 1 ? '' : 's') : '') : 'Track the time you spend so Steward learns how long things really take.'}</span>
+    <div class="dr-acts">
+      ${t.status !== 'done' ? (t.timer ? html`<button class="btn sm pri" onClick=${() => A.pauseTimer(t.id)}>Pause work</button>` : html`<button class="btn sm pri" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start work</button>`) : null}
+      ${t.status !== 'done' ? html`<button class="btn sm ghost" aria-expanded=${why} onClick=${() => setWhy(!why)}>${inf.unscheduled ? 'Why no room?' : 'Why here?'}</button>` : null}
+      ${trackedMin(t, now) >= 1 ? html`<span class="muted small">Tracked ${fmtDur(Math.round(trackedMin(t, now)))} of ${fmtDur(t.duration || 30)}</span>` : null}
+    </div>
+    ${why && t.status !== 'done' ? html`<div class="why">
+      ${inf.unscheduled ? html`${inf.reason || fmtDur(Math.round(inf.short || 0)) + ' doesn’t fit in your working hours over the next ' + state.settings.horizon + ' days.'}` :
+        inf.first ? html`Finishing ${relD(inf.end, now)} ${fmtT(inf.end)}${blocks.length > 1 ? ', across ' + blocks.length + ' blocks' : ''}. ${t.deadline ? (inf.late ? html`<span style=${{ color: 'var(--bad)' }}>That’s after the deadline.</span>` : 'That’s before the ' + relD(t.deadline, now) + ' deadline.') : ''} Steward chose the earliest open time ${inf.why && inf.why.length ? inf.why.join(' and ') : ''} given its ${t.deadline ? 'deadline' : 'priority'}.` : 'Steward is still working out where this goes.'}
+      ${blocks.length ? html`<div class="panel rows" style=${{ marginTop: '8px' }}>${blocks.map((bk) => html`<div key=${bk.id} class="row"><span class="time">${relD(bk.start, now)}</span><div class="t"><b class="mono" style=${{ fontWeight: 500 }}>${fmtT(bk.start)}–${fmtT(bk.end)}</b><small>${bk.locked ? 'Locked by you' : 'Auto-scheduled'}</small></div>
+        ${bk.locked ? html`<button class="btn sm" onClick=${() => A.unlock(t.id, bk.lockId)}>Unlock</button>` : html`<button class="btn sm" onClick=${() => A.lockBlock(t.id, bk.start, bk.end)}><${Icon} n="lock" />Lock</button>`}</div>`)}</div>` : null}
     </div>` : null}
+    <${Checklist} t=${t} up=${up} state=${state} setToast=${ctx.setToast} />
+    <div class="fld"><label for="t-desc">Notes</label><textarea id="t-desc" class="in" value=${t.desc || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="Details, links, context…"></textarea></div>
+    ${src ? html`<div class="why">From note <b>${src.title}</b>${t.sourceLine != null ? ', line ' + (t.sourceLine + 1) : ''}: “${(src.body.split('\n')[t.sourceLine] || '').trim()}”</div>` : null}
+    <button class="dr-more" aria-expanded=${more} onClick=${() => setMore(!more)}><span>Details</span><span class="muted small">${more ? 'Hide' : 'Estimate, priority, deadline, repeat, project, labels…'}</span><span class="chev" aria-hidden="true">${more ? '▴' : '▾'}</span></button>
+    ${more ? html`<div class="dr-details">
     <div class="grid3">
       <div class="fld"><label for="t-dur">Estimate</label><select id="t-dur" class="in" value=${t.duration} onChange=${(e) => up({ duration: +e.target.value })}>${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].concat([t.duration]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}</select></div>
       <div class="fld"><label for="t-pri">Priority</label><select id="t-pri" class="in" value=${t.priority} onChange=${(e) => up({ priority: e.target.value })}>${Object.keys(PRI).map((k) => html`<option key=${k} value=${k}>${PRI_LABEL[k]}</option>`)}</select></div>
@@ -1520,7 +1586,6 @@ function TaskDrawer(ctx) {
       <div class="fld"><label for="t-rep">Repeat</label><select id="t-rep" class="in" value=${t.repeat || ''} onChange=${(e) => up({ repeat: e.target.value || null })}><option value="">Doesn’t repeat</option>${Object.entries(REPEAT).map(([k, l]) => html`<option key=${k} value=${k}>${l[0].toUpperCase() + l.slice(1)}</option>`)}</select></div>
     </div>
     ${t.repeat ? html`<div class="muted small" style=${{ marginTop: '-4px' }}>When you finish this, Steward adds the next one${t.deadline ? ', due ' + fmtD(nextOccurrence(t, now).deadline) : ''}.</div>` : null}
-    <${Checklist} t=${t} up=${up} state=${state} setToast=${ctx.setToast} />
     <div class="grid2">
       <div class="fld"><label for="t-proj">Project</label><select id="t-proj" class="in" value=${t.projectId || ''} onChange=${(e) => up({ projectId: e.target.value || null })}><option value="">None</option>${state.projects.map((p) => html`<option key=${p.id} value=${p.id}>${p.name}</option>`)}</select></div>
       <div class="fld"><label for="t-chunk">Smallest work block</label><select id="t-chunk" class="in" value=${t.minChunk || ''} onChange=${(e) => up({ minChunk: +e.target.value || null })}><option value="">Default (${state.settings.minChunk}m)</option>${[15, 30, 60, 90, 120].map((m) => html`<option key=${m} value=${m}>${fmtDur(m)}</option>`)}<option value=${9999}>Don’t split</option></select></div>
@@ -1530,12 +1595,7 @@ function TaskDrawer(ctx) {
       <select id="t-deps" class="in" value="" onChange=${(e) => e.target.value && up({ deps: [...(t.deps || []), e.target.value] })}><option value="">Add a task this depends on…</option>${others.filter((o) => !(t.deps || []).includes(o.id)).map((o) => html`<option key=${o.id} value=${o.id}>${o.title}</option>`)}</select>
       ${(t.deps || []).length ? html`<div class="chips" style=${{ marginTop: '6px' }}>${t.deps.map((d) => { const o = state.tasks.find((x) => x.id === d); return o ? html`<button key=${d} class="chip" onClick=${() => up({ deps: t.deps.filter((x) => x !== d) })} title="Remove">${o.title}${o.status === 'done' ? ' ✓' : ''} ×</button>` : null; })}</div>` : null}
     </div>
-    <div class="fld"><label for="t-desc">Notes</label><textarea id="t-desc" class="in" value=${t.desc || ''} onInput=${(e) => up({ desc: e.target.value })} placeholder="Details, links, context…"></textarea></div>
-    ${src ? html`<div class="why">From note <b>${src.title}</b>${t.sourceLine != null ? ', line ' + (t.sourceLine + 1) : ''}: “${(src.body.split('\n')[t.sourceLine] || '').trim()}”</div>` : null}
-    <div class="fld"><label>Work blocks</label>
-      ${blocks.length ? html`<div class="panel rows">${blocks.map((b) => html`<div key=${b.id} class="row"><span class="time">${relD(b.start, now)}</span><div class="t"><b class="mono" style=${{ fontWeight: 500 }}>${fmtT(b.start)}–${fmtT(b.end)}</b><small>${b.locked ? 'Locked by you' : 'Auto-scheduled'}</small></div>
-        ${b.locked ? html`<button class="btn sm" onClick=${() => A.unlock(t.id, b.lockId)}>Unlock</button>` : html`<button class="btn sm" onClick=${() => A.lockBlock(t.id, b.start, b.end)}><${Icon} n="lock" />Lock</button>`}</div>`)}</div>` : html`<div class="muted" style=${{ fontSize: '13px' }}>None yet.</div>`}
-    </div>
+    </div>` : null}
   </aside></div>`;
 }
 
@@ -1640,9 +1700,12 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn 
     setNt('');
   };
   const card = (t, c) => {
-    const f = info(t).first, pr = by !== 'project' && !p && state.projects.find((x) => x.id === t.projectId);
+    const w = taskWhen(t, plan, now);
+    const pr = by !== 'project' && !p && state.projects.find((x) => x.id === t.projectId);
+    const sub = pr ? pr.name + (t.stage ? ' › ' + t.stage : '') : p && by !== 'stage' && t.stage ? t.stage : '';
     const cl = t.checklist || [], cd = cl.filter((x) => x.done).length;
     const due = t.deadline && t.status !== 'done' ? t.deadline : null;
+    const flag = t.status !== 'done' && (w.kind === 'blocked' || w.kind === 'noroom') && !(by === 'status' && w.kind === 'blocked');
     return html`<div key=${t.id} role="button" tabindex="0" class=${'bcard' + (t.status === 'done' ? ' dn' : '') + (drag && drag.id === t.id ? ' lifted' : '')}
       onPointerDown=${(e) => down(e, t, c.key)}
       onClick=${() => { if (!clickBlock.current) setDrawer({ type: 'task', id: t.id }); }}
@@ -1651,21 +1714,14 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn 
         <button class="ck" onPointerDown=${(e) => e.stopPropagation()} onClick=${(e) => { e.stopPropagation(); A.toggleDone(t.id); }} aria-label=${t.status === 'done' ? 'Mark not done' : 'Mark done'}>${t.status === 'done' ? html`<${Icon} n="check" />` : null}</button>
         <b>${t.title}</b>
       </div>
-      <span class="bc-meta">
-        ${pr ? html`<span class="pdot" style=${{ background: pColor(pr.color) }}></span><span>${pr.name}</span>` : null}
-        <span>${fmtDur(t.duration || 30)}</span>
-        ${t.status !== 'done' && f ? html`<span>${relD(f, now)}</span>` : t.status !== 'done' && info(t).unscheduled ? html`<span class="bad">No room</span>` : null}
-        ${due ? html`<span class=${info(t).late || due < now ? 'bad' : ''}>due ${relD(due, now)}</span>` : null}
-        ${cl.length ? html`<span class=${cd === cl.length ? 'okc' : ''}><${Icon} n="tasks" />${cd}/${cl.length}</span>` : null}
-        ${t.repeat ? html`<span title=${'Repeats ' + REPEAT[t.repeat]}><${Icon} n="repeat" /></span>` : null}
-        ${t.timer ? html`<span class="bad">● timing</span>` : t.spent >= 1 ? html`<span>${fmtDur(Math.round(t.spent))} tracked</span>` : null}
-      </span>
-      ${(by !== 'priority' && (t.priority === 'asap' || t.priority === 'high')) || (by !== 'status' && (t.status === 'blocked' || t.status === 'doing')) || t.hard || (t.labels || []).length ? html`<span class="bcard-tags">
-        ${by !== 'priority' && (t.priority === 'asap' || t.priority === 'high') ? html`<span class=${'prio p-' + t.priority}>${PRI_LABEL[t.priority]}</span>` : null}
-        ${by !== 'status' && t.status === 'blocked' ? html`<span class="lbl-pill">blocked</span>` : null}
-        ${by !== 'status' && t.status === 'doing' ? html`<span class="lbl-pill">in progress</span>` : null}
-        ${t.hard ? html`<span class="lbl-pill">hard</span>` : null}
-        ${(t.labels || []).map((l) => html`<span key=${l} class="lbl-pill">${l}</span>`)}
+      ${sub ? html`<span class="bc-sub">${pr ? html`<span class="pdot" style=${{ background: pColor(pr.color) }}></span>` : null}${sub}</span>` : null}
+      ${t.status !== 'done' ? html`<span class="bc-meta">
+        ${flag ? html`<span class=${w.kind === 'blocked' ? 'warnc caps' : 'bad caps'}>${w.text}</span>` : w.kind === 'ok' || w.kind === 'late' ? html`<span class="bc-when">${w.text}</span>` : null}
+        <span>${fmtDur(remainingMin(t) || t.duration || 30)}</span>
+        ${due ? html`<span class=${(plan.info[t.id] || {}).late || due < now ? 'bad' : ''}>due ${relD(due, now)}</span>` : null}
+        ${t.priority === 'asap' && by !== 'priority' ? html`<span class="bad">ASAP</span>` : null}
+        ${cl.length && cd < cl.length && cd > 0 ? html`<span><${Icon} n="tasks" />${cd}/${cl.length}</span>` : null}
+        ${t.timer ? html`<span class="bad">● working</span>` : null}
       </span>` : null}
     </div>`;
   };
@@ -1678,8 +1734,8 @@ function Kanban({ by, ts, state, plan, now, A, setDrawer, p, color, onAddColumn 
       const mins = list.filter((t) => t.status !== 'done').reduce((a, t) => a + remainingMin(t), 0);
       return html`<section key=${c.key} data-col=${c.key} class=${'bcol' + (drag && drag.over === c.key && drag.from !== c.key ? ' over' : '')} aria-label=${c.label}>
         <div class="bcol-h">
-          <span class="spill" style=${{ '--c': c.color || color || 'var(--ink-3)' }}>${c.label}</span>
-          <span class="muted mono">${list.length}${mins ? ' · ' + fmtDur(mins) : ''}</span>
+          <span class="bcol-t">${c.color || color ? html`<span class="pdot" style=${{ background: c.color || color }}></span>` : null}${c.label}</span>
+          <span class="muted mono">${list.filter((t) => t.status !== 'done').length || list.length}${mins ? ' · ' + fmtDur(mins) : ''}</span>
         </div>
         <div class="bcol-body">
           ${shown.map((t) => card(t, c))}
