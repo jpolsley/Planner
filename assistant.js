@@ -468,6 +468,37 @@ async function kinExtractNote(note, state) {
   return { summary: String(j.summary || 'Summary unavailable.'), decisions: (j.decisions || []).map((t) => ({ line: null, text: String(t) })), actions, events };
 }
 
+/* Opening Diana from a task or project: the context travels as data (type + id), not as words put in the
+ * user's mouth. Diana gets the facts about it for each message until the user clears it. */
+const DIANA_CTX_KEY = 'steward.diana.ctx.v1';
+function openDiana(setView, context, question) {
+  kinSave(DIANA_CTX_KEY, { ...context, at: Date.now(), question: question || null });
+  setView('assistant');
+}
+function dianaContextInfo(c, state, plan) {
+  if (!c) return null;
+  const refs = {};
+  if (c.type === 'project') {
+    const p = state.projects.find((x) => x.id === c.id);
+    if (!p) return null;
+    return { label: 'Project: ' + p.name, chips: ['What’s missing from this project?', 'Is this still realistic?', 'What should happen next?'],
+      block: 'ACTIVE CONTEXT: the user opened you from the page for the project "' + p.name + '". Unless they say otherwise, "this" means this project.\n' + (p.doneDef ? 'Done looks like: ' + p.doneDef.slice(0, 300) + '\n' : '') + agentTool('project_status', { name: p.name }, state, plan, refs).slice(0, 1800) };
+  }
+  if (c.type === 'task') {
+    const t = state.tasks.find((x) => x.id === c.id);
+    if (!t) return null;
+    const inf = plan.info[t.id] || {};
+    const facts = [agentTool('search_tasks', { query: t.title }, state, plan, refs).split('\n')[0],
+      t.kind === 'decision' ? 'This is a decision the user needs to make.' : t.kind === 'waiting' ? 'The user is waiting on ' + (t.waitingOn || 'someone') + ' for this.' : '',
+      inf.unscheduled ? 'It does not fit in their schedule: ' + (inf.reason || 'not enough open time before the horizon') + '.' : inf.first ? 'Scheduled ' + fmtD(inf.first) + ' ' + fmtT(inf.first) + ' to ' + fmtD(inf.end) + ' ' + fmtT(inf.end) + (inf.why && inf.why.length ? ' (earliest open time ' + inf.why.join(' and ') + ')' : '') + (inf.late ? ', which is after its deadline' : '') + '.' : '',
+      (t.checklist || []).length ? 'Checklist: ' + t.checklist.map((x) => (x.done ? '[x] ' : '[ ] ') + x.text).join('; ') : '',
+      t.desc ? 'Notes: ' + t.desc.slice(0, 600) : ''].filter(Boolean).join('\n');
+    return { label: (t.kind === 'decision' ? 'Decision: ' : 'Task: ') + t.title, chips: t.kind === 'decision' ? ['Help me decide this', 'What do I need to know to decide?'] : ['Break this down', 'Why is this scheduled here?', 'Can I get this done sooner?'],
+      block: 'ACTIVE CONTEXT: the user opened you from the task "' + t.title + '". Unless they say otherwise, "this" means this task.\n' + facts };
+  }
+  return null;
+}
+
 function AssistantView(ctx) {
   const { state, plan, runCommand, setToast, A, commit } = ctx;
   const [, force] = useState(0);
@@ -477,6 +508,9 @@ function AssistantView(ctx) {
   const [input, setInput] = useState('');
   const [added, setAdded] = useState({});
   const [pendingText, setPending] = useState(null);
+  const [actx, setActx] = useState(() => { const c = kinLoad(DIANA_CTX_KEY, null); return c && Date.now() - (c.at || 0) < 12 * 3600000 ? c : null; });
+  const clearCtx = () => { setActx(null); try { localStorage.removeItem(DIANA_CTX_KEY); } catch (e) {} };
+  const ci = dianaContextInfo(actx, state, plan);
   const endRef = useRef();
 
   useEffect(() => { const f = () => force((n) => n + 1); kinAI.subs.add(f); kinMem.subs.add(f); return () => { kinAI.subs.delete(f); kinMem.subs.delete(f); }; }, []);
@@ -524,7 +558,7 @@ function AssistantView(ctx) {
     setInput('');
     let reply = '';
     try {
-      const base = kinSystem(state, plan, text)
+      const base = kinSystem(state, plan, text) + (ci ? '\n\n' + ci.block : '')
         + (compact && compact.points.length ? '\n\nEarlier in this conversation:\n' + compact.points.map((p) => '- ' + p).join('\n') : '')
         + (mode === 'plan' ? '\n\nPLAN-ONLY MODE: the user has turned off changes. Never include an actions block; describe what you would change in words.' : '');
       // The guard and the lookups apply to this request only; the stored chat stays exactly as said.
@@ -532,7 +566,7 @@ function AssistantView(ctx) {
       const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
       reply = r.text;
       const acts = mode === 'plan' ? [] : chatActions(reply).actions;
-      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps) } });
+      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: actx ? { type: actx.type, id: actx.id, view: actx.view } : { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps) } });
       patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool) }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
         const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
@@ -549,6 +583,7 @@ function AssistantView(ctx) {
   };
   const addLine = (key, line) => { runCommand(line); setAdded((a) => ({ ...a, [key]: true })); setToast({ text: 'Added to your planner', id: uid() }); };
   const quick = ['What should I focus on today?', 'Break my biggest task into smaller steps', 'What have you learned about me?'];
+  useEffect(() => { if (actx && actx.question) { const q = actx.question; const c = { ...actx, question: null }; setActx(c); kinSave(DIANA_CTX_KEY, c); send(q); } }, []);
   useEffect(() => { if (ready && pendingText && !busy) { const t = pendingText; setPending(null); send(t); } }, [ready, pendingText]);
   useEffect(() => { if (kinAI.status === 'error' && pendingText) { setInput(pendingText); setPending(null); } }, [kinAI.status]);
   const pats = learnedPatterns(state);
@@ -641,8 +676,11 @@ function AssistantView(ctx) {
         ${pendingText ? html`<div style=${{ alignSelf: 'flex-end', maxWidth: '85%' }}><div style=${{ whiteSpace: 'pre-wrap', padding: '10px 13px', borderRadius: '12px', background: 'var(--accent-soft)' }}>${pendingText}</div><div class="small muted" style=${{ marginTop: '4px', textAlign: 'right' }}>Steward is loading, and will reply when it’s ready…</div></div>` : null}
         <div ref=${endRef}></div>
       </div>
+      ${ci ? html`<div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span class="pill" title="Diana gets the details of this with each message">About ${ci.label}</span><button class="btn sm ghost" onClick=${clearCtx} aria-label="Stop talking about this">×</button>
+      </div>` : null}
       <div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        ${quick.map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
+        ${(ci ? ci.chips : quick).map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
         <span style=${{ flex: 1 }}></span>
         <label class="small muted" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" style=${{ width: 'auto', padding: '4px 8px', fontSize: '12.5px' }} value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Steward may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
         ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}

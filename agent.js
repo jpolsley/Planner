@@ -26,6 +26,7 @@ function agentTool(name, args, state, plan, refs) {
   const proj = (t) => (state.projects.find((p) => p.id === t.projectId) || {}).name;
   const line = (t) => '[' + ref('T', t.id) + '] ' + t.title + ' — ' + ({ todo: 'to do', doing: 'in progress', blocked: 'blocked', done: 'done' }[t.status] || t.status) + ', ' + PRI_LABEL[t.priority] + ', ' + fmtDur(remainingMin(t)) + ' left'
     + (t.deadline ? ', due ' + fmtD(t.deadline) : '') + (proj(t) ? ', project ' + proj(t) : '') + ((plan.info[t.id] || {}).first && t.status !== 'done' ? ', scheduled ' + fmtD(plan.info[t.id].first) + ' ' + fmtT(plan.info[t.id].first) : '')
+    + (t.kind === 'decision' && t.status !== 'done' ? ', a decision to make' : '') + (t.kind === 'waiting' && t.status !== 'done' ? ', waiting on ' + (t.waitingOn || 'someone') : '')
     + (t.completed ? ', finished ' + fmtD(t.completed) : '') + ((t.labels || []).length ? ', labels ' + t.labels.join('/') : '');
   args = args || {};
   if (name === 'search_tasks') {
