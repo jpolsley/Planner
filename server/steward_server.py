@@ -13,6 +13,8 @@ Settings come from environment variables or a steward.env file next to this scri
   PORT          default 8787 (HOST default 127.0.0.1; use Tailscale Serve for your phone)
 """
 import asyncio
+import base64
+import binascii
 import json
 import os
 import re
@@ -428,6 +430,73 @@ async def events_post(request: Request):
     return {"ok": True, "stored": len(items)}
 
 
+# ---------- documents from the app ----------
+DOC_TYPES = {".txt", ".md", ".pdf"}
+
+
+def _doc_name(name: str) -> str:
+    """A safe file name inside docs/: no folders, no hidden files, only the types Diana can read."""
+    base = Path(str(name or "")).name.strip().lstrip(".")
+    base = re.sub(r"[^\w .()&,'-]+", "_", base)[:120]
+    if not base or Path(base).suffix.lower() not in DOC_TYPES or base.lower() == "readme.md":
+        raise ValueError("Only .md, .txt and .pdf files can be added.")
+    return base
+
+
+def _reload_docs():
+    global CHUNKS
+    CHUNKS = _load_chunks()
+
+
+@app.get("/v1/docs")
+async def docs_list(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    counts = {}
+    for c in CHUNKS:
+        counts[c["source"]] = counts.get(c["source"], 0) + 1
+    out = []
+    for path in sorted(DOCS_DIR.iterdir()):
+        if path.is_file() and path.suffix.lower() in DOC_TYPES and path.name.lower() != "readme.md":
+            st = path.stat()
+            out.append({"name": path.name, "size": st.st_size, "updated": int(st.st_mtime * 1000), "passages": counts.get(path.name, 0)})
+    return {"docs": out}
+
+
+@app.post("/v1/docs")
+async def docs_add(request: Request):
+    """Body: {"name": "about-me.md", "data": base64 of the file}. Replaces a file with the same name."""
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    body = await request.json()
+    try:
+        name = _doc_name(body.get("name"))
+        raw = base64.b64decode(body.get("data") or "", validate=True)
+    except (ValueError, binascii.Error) as e:
+        return JSONResponse({"error": str(e) or "That file couldn't be read."}, status_code=400)
+    if not raw or len(raw) > 15 * 1024 * 1024:
+        return JSONResponse({"error": "Files must be under 15 MB."}, status_code=400)
+    tmp = DOCS_DIR / (".upload-" + secrets.token_hex(4))
+    tmp.write_bytes(raw)
+    tmp.replace(DOCS_DIR / name)
+    _reload_docs()
+    return {"ok": True, "name": name, "passages": sum(1 for c in CHUNKS if c["source"] == name)}
+
+
+@app.delete("/v1/docs/{name}")
+async def docs_remove(name: str, request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    try:
+        path = DOCS_DIR / _doc_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if path.exists():
+        path.unlink()
+        _reload_docs()
+    return {"ok": True}
+
+
 @app.get("/v1/events")
 async def events_get(request: Request, since: int = 0, limit: int = 2000):
     if not _authorized(request):
@@ -502,7 +571,7 @@ def status_page():
 <h1>Steward server</h1><p><b>Status:</b> {status}</p>
 <p><b>Model:</b> {esc(", ".join(MODELS))} via <code>{esc(OLLAMA_BASE + "/api/chat" if OLLAMA_BASE else LLM_URL)}</code>{(" · context " + str(NUM_CTX) + " · kept loaded " + KEEP_ALIVE) if OLLAMA_BASE else ""}</p>
 <p><b>Planner saved to:</b> <code>{esc(str(DATA_FILE))}</code>{(" · ⚠️ " + esc(STORE["error"])) if STORE["error"] else ""}</p>
-<p><b>Documents</b> (put .txt, .md or .pdf files in <code>{esc(str(DOCS_DIR))}</code> and restart): {esc(", ".join(docs)) if docs else "none yet"}</p>
+<p><b>Documents</b> (add them in Steward under Diana → What I know, or put .txt, .md or .pdf files in <code>{esc(str(DOCS_DIR))}</code> and restart): {esc(", ".join(docs)) if docs else "none yet"}</p>
 </body></html>"""
 
 

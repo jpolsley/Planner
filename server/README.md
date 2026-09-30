@@ -40,9 +40,16 @@ Only your own devices can reach that address. The phone only has Steward's AI wh
 
 ## Your files
 All of these live in `~/Steward` (change it with `STEWARD_HOME`):
-- `docs/`: put `.txt`, `.md` or `.pdf` files here, then restart the server. Steward uses them in answers.
+- `docs/`: the documents Diana reads (`.txt`, `.md` or `.pdf`). Add or remove them in Steward under **Diana → What I know → Add documents**, or from a project's **Related** section. They're used right away. You can also copy files into this folder yourself and restart the server.
 - `data/steward.json`: your synced planner.
 - `data/backups/`: one copy per day, and the last 14 days are kept.
+
+## Updating the server
+When Steward gets a new server feature, run this once in Terminal. It downloads the new server file and stops the old server:
+```
+curl -fsSL -o ~/Steward/server/steward_server.py https://raw.githubusercontent.com/ministryAI/Planner/main/server/steward_server.py && lsof -ti tcp:8787 | xargs kill
+```
+Then click the Steward app to start it again.
 
 ## Settings (`steward.env`)
 | Setting | Default | |
