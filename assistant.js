@@ -690,8 +690,79 @@ function AssistantView(ctx) {
         <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Diana, or tell her about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
         ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
       </form>
-    </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
+    </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${DocsPanel} setToast=${setToast} /><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
   </div>`;
+}
+
+/* Documents Diana reads, kept on the Steward server (~/Steward/docs). Adding one here uploads it there,
+ * and she can use it right away. With a project, files are also linked to that project. */
+const docReadB64 = (file) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => bad(new Error('Couldn’t read ' + file.name)); r.readAsDataURL(file); });
+function DocsPanel({ setToast, p, A, compact }) {
+  const sp = kinSpace();
+  const own = sp && sp.url && sp.key && !sp.id;
+  const [docs, setDocs] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+  const fileRef = useRef();
+  const call = (path, opt) => fetch(sp.url + path, { ...opt, headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' } });
+  const load = async () => {
+    try {
+      const r = await call('/v1/docs');
+      if (r.status === 404) { setErr('update'); return; }
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Server error ' + r.status);
+      setDocs((await r.json()).docs); setErr('');
+    } catch (e) { setErr(e.message === 'Failed to fetch' ? 'offline' : e.message); }
+  };
+  useEffect(() => { if (own) load(); }, []);
+  const upload = async (files) => {
+    const names = [];
+    for (const f of files) {
+      if (!/\.(md|txt|pdf)$/i.test(f.name)) { setToast({ text: f.name + ': only .md, .txt and .pdf files', id: uid() }); continue; }
+      setBusy('Adding ' + f.name + '…');
+      try {
+        const r = await call('/v1/docs', { method: 'POST', body: JSON.stringify({ name: f.name, data: await docReadB64(f) }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Server error ' + r.status);
+        names.push(j.name);
+      } catch (e) { setToast({ text: f.name + ': ' + (e.message === 'Failed to fetch' ? 'couldn’t reach your Steward server' : e.message), id: uid() }); }
+    }
+    setBusy('');
+    if (names.length) {
+      if (p && A) A.updProject(p.id, { docs: [...new Set([...(p.docs || []), ...names])] });
+      setToast({ text: (names.length === 1 ? names[0] : names.length + ' documents') + ' added. Diana can use ' + (names.length === 1 ? 'it' : 'them') + ' now.', id: uid() });
+    }
+    load();
+  };
+  const remove = async (name) => {
+    if (p && A) { A.updProject(p.id, { docs: (p.docs || []).filter((x) => x !== name) }); return; }
+    if (!confirm('Remove “' + name + '” from Diana? This deletes it from ~/Steward/docs.')) return;
+    const r = await call('/v1/docs/' + encodeURIComponent(name), { method: 'DELETE' }).catch(() => null);
+    if (!r || !r.ok) setToast({ text: 'Couldn’t remove it', id: uid() });
+    load();
+  };
+  if (!own) {
+    if (p) return null;
+    return html`<section class="panel" style=${{ marginBottom: '16px' }}><div class="ph"><h2>Documents</h2></div>
+      <p class="muted small" style=${{ padding: '0 16px 16px', margin: 0 }}>Connect your Steward server on the Chat tab to add documents here. Diana reads them in her answers.</p></section>`;
+  }
+  const list = (docs || []).filter((d) => !p || (p.docs || []).includes(d.name));
+  const input = html`<input ref=${fileRef} type="file" multiple accept=".md,.txt,.pdf,text/markdown,text/plain,application/pdf" hidden onChange=${(e) => { upload([...e.target.files]); e.target.value = ''; }} />`;
+  const msg = err === 'update' ? 'Your Steward server needs updating to add documents from here (see the update step in the server README).' : err === 'offline' ? 'Your Steward server isn’t reachable right now. Start Steward on your laptop.' : err;
+  if (p) return html`<div>
+    ${list.map((d) => html`<div key=${d.name} class="row"><span></span><div class="t"><b>${d.name}</b><small>Diana can read this</small></div><button class="btn sm ghost" onClick=${() => remove(d.name)}>Unlink</button></div>`)}
+    ${(p.docs || []).filter((n) => docs && !docs.some((d) => d.name === n)).map((n) => html`<div key=${n} class="row"><span></span><div class="t"><b>${n}</b><small>No longer on the server</small></div><button class="btn sm ghost" onClick=${() => remove(n)}>Unlink</button></div>`)}
+    <div class="row"><span></span><div class="t"><small class=${err ? 'bad-t' : 'muted'}>${busy || msg || ''}</small></div><button class="btn sm ghost" disabled=${!!busy || !!err} onClick=${() => fileRef.current.click()}><${Icon} n="plus" />Add file</button></div>
+    ${input}
+  </div>`;
+  return html`<section class="panel" style=${{ marginBottom: '16px' }}>
+    <div class="ph"><h2>Documents Diana reads</h2><span class="grow"></span><button class="btn sm pri" disabled=${!!busy || !!err} onClick=${() => fileRef.current.click()}><${Icon} n="plus" />Add documents</button></div>
+    <p class="muted small" style=${{ padding: '0 16px', margin: '0 0 10px' }}>${busy || msg || '.md, .txt or .pdf. They’re saved on your laptop in ~/Steward/docs, and Diana can use them right away.'}</p>
+    ${docs && !docs.length ? html`<p class="muted small" style=${{ padding: '0 16px 16px', margin: 0 }}>None yet. A good first one: a page about you and your work.</p>` : null}
+    <div>${list.map((d) => html`<div key=${d.name} style=${{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 16px', borderTop: '1px solid var(--line)' }}>
+      <span style=${{ flex: 1 }}>${d.name}</span><span class="small muted">${d.size >= 1048576 ? (d.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(d.size / 1024)) + ' KB'} · ${fmtD(d.updated)}${d.passages ? '' : ' · no readable text'}</span>
+      <button class="btn sm ghost" onClick=${() => remove(d.name)}>Remove</button></div>`)}</div>
+    ${input}
+  </section>`;
 }
 
 function MemoryPanel({ prefs, setPrefs, pats, setToast }) {
