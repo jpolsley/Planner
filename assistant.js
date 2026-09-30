@@ -567,18 +567,20 @@ function AssistantView(ctx) {
       const { system, history, meta } = guardRequest({ msgs: prior, text, baseSystem: base, variant: guardVariant(), state, plan, refs });
       const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
       reply = r.text;
+      const fakeBlock = /\[proposed changes\]/i.test(reply);
       let acts = mode === 'plan' ? [] : chatActions(reply).actions;
       // She said she'd change something but gave no changes: ask once for just the changes, else say so.
       let repaired = null;
-      if (mode !== 'plan' && !acts.length && /\b(i'll|i will|i've|i have|let me|i'm going to|i can)\s+(go ahead and\s+)?(add|create|set up|make|move|mark|schedule|update|put)\b/i.test(reply)) {
+      if (mode !== 'plan' && !acts.length && (/\b(i['’]ll|i will|i['’]ve|i have|let me|i['’]m going to|i can)\s+(go ahead and\s+)?(add|create|set up|make|move|mark|schedule|update|put)\b/i.test(reply) || /\[proposed changes\]/i.test(reply))) {
         try {
           const fix = await kinAI.ask({ messages: [{ role: 'system', content: system }, ...history, { role: 'assistant', content: reply }, { role: 'user', content: '[Steward, not the user:] Your reply says you will make a change but has no actions block. Reply with ONLY the ```actions block for exactly what you said, using the ops listed. If no op can do it, reply NONE.' }], maxTokens: 400, temperature: 0, docs: false });
           acts = chatActions(fix).actions;
           repaired = acts.length ? 'fixed' : 'none';
-          if (acts.length) reply = reply.replace(/\s*$/, '') + '\n\n' + fix.match(/```\s*actions[\s\S]*?```/i)[0];
+          if (acts.length) reply = reply.replace(/\s*\[proposed changes\]\s*/gi, '\n\n').replace(/\s*$/, '') + '\n\n' + fix.match(/```\s*actions[\s\S]*?```/i)[0];
         } catch (e) { repaired = 'error'; }
       }
       if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: actx ? { type: actx.type, id: actx.id, view: actx.view } : { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps), repaired } });
+      if (fakeBlock && !acts.length) reply = reply.replace(/\s*\[proposed changes\]\s*/gi, '\n\n').trim();
       patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool), note: repaired === 'none' || repaired === 'error' ? 'Diana didn’t actually change anything. Try asking again, or make the change yourself.' : null }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
         const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
