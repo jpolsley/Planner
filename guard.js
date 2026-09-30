@@ -72,7 +72,7 @@ function guardRequest({ msgs, text, baseSystem, variant, state, plan, refs }) {
   const recent = clean.slice(-4).map((m) => m.content).join(' ').slice(-2000);
   const pf = guardPrefetch(state, plan, refs, text, recent);
   const keep = fired && variant === 'guard_short' ? 4 : 8;
-  const history = [...clean, { role: 'user', content: text }].slice(-keep).map((m) => ({ role: m.role, content: String(m.content).replace(/```actions[\s\S]*?```/g, '[proposed changes]') }));
+  const history = [...clean, { role: 'user', content: text }].slice(-keep).map((m) => ({ role: m.role, content: String(m.content).replace(/\[proposed changes\]/gi, '') }));
   if (fired && variant === 'guard_near') history[history.length - 1] = { role: 'user', content: history[history.length - 1].content + '\n\n[' + GUARD_NOTE + ']' };
   const system = baseSystem + guardPrefetchBlock(pf) + (fired && variant !== 'guard_near' ? '\n\n' + GUARD_NOTE : '');
   return { system, history, meta: { guard_variant: variant, exploration_depth_before: depth, guard_fired: fired, history_len: history.length, prefetches: pf.map((x) => ({ source: x.source, label: x.label, chars: x.body.length })) } };
