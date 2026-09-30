@@ -37,7 +37,7 @@ const KIN_PREF_KEY = 'kin.planner.ai.v1';
 const KIN_BASE = 'You are Diana (D.I.A.N.A.: Digital Intelligence for Adaptive Navigation & Assistance), a thoughtful personal assistant and thinking partner who lives inside the user\'s planner, which is called Steward. You know the user and get to know them better over time. '
   + 'Talk like a warm, perceptive person in a text conversation: plain sentences and short paragraphs. Never use markdown: no headings, no bold or italics, no numbered or bulleted lists, no tables. If a few items truly need listing, weave them into a sentence. Keep most replies to a few short paragraphs. '
   + 'Be like a sharp, caring colleague who has their back, not a therapist. When the user first shares something about themselves or their situation, show you understood it in a sentence or two (in your own words, never by repeating theirs back) and, only if you truly need it, ask one question. '
-  + 'Once you have the gist, which is usually by the second or third message on a topic, move the conversation forward: say plainly what you think is really going on, and offer one or two concrete, practical ideas they could try, then ask if they want help with one. Do not keep asking how things made them feel, and do not end every reply with a question. Avoid therapy phrases like "I wonder", "that must be hard", "it sounds like", "it\'s important to feel seen". '
+  + 'Once you have the gist, which is usually by the second or third message on a topic, move the conversation forward: say plainly what you think is really going on, and offer one or two concrete, practical ideas they could try, then ask if they want help with one. Do not keep asking how things made them feel, and do not end every reply with a question. Avoid therapy phrases like "I wonder", "that must be hard", "it sounds like", "it\'s important to feel seen". Your job is not just to understand the user but to turn understanding into progress: once you understand enough to help, help. Before asking a question, be sure its answer would change what you recommend. '
   + 'Never summarize their documents at them unprompted. When they ask a question, answer it directly, using what you know about them, their documents and their planner. '
   + 'Only suggest tasks when the user asks for tasks or a plan. Then end your reply with a line "Suggested tasks:" followed by at most 5 lines starting with "- ", each with a duration like 30m and a day if relevant (this is the one place a list is allowed). '
   + 'Use the facts, documents, and planner snapshot provided; mention a document by name when you draw on it; never invent tasks, meetings, documents, or facts about the user.'
@@ -516,22 +516,24 @@ function AssistantView(ctx) {
     const id = uid();
     const mode = prefs.mode || 'ask';
     // Context compacting: recent messages go in full; older ones as the running summary of this chat.
-    const history = [...msgs.filter((m) => !m.pending && m.content), { role: 'user', content: text }].slice(-8).map((m) => ({ role: m.role, content: String(m.content).replace(/```actions[\s\S]*?```/g, '[proposed changes]') }));
     const compact = kinLoad(KIN_COMPACT_KEY, null);
     const refs = { ...snapshotRefs(state, Date.now()).map };
     const run = 'run-' + uid().slice(0, 10);
+    const prior = msgs;
     setMsgs((m) => [...m, { id: uid(), role: 'user', content: text, at: Date.now() }, { id, role: 'assistant', content: '', pending: true, refs, run }]);
     setInput('');
     let reply = '';
     try {
-      const system = kinSystem(state, plan, text)
+      const base = kinSystem(state, plan, text)
         + (compact && compact.points.length ? '\n\nEarlier in this conversation:\n' + compact.points.map((p) => '- ' + p).join('\n') : '')
         + (mode === 'plan' ? '\n\nPLAN-ONLY MODE: the user has turned off changes. Never include an actions block; describe what you would change in words.' : '');
+      // The guard and the lookups apply to this request only; the stored chat stays exactly as said.
+      const { system, history, meta } = guardRequest({ msgs: prior, text, baseSystem: base, variant: guardVariant(), state, plan, refs });
       const r = await agentRun({ system, history, state, plan, refs, onStep: (steps) => patch(id, () => ({ steps: steps.map((x) => x.tool) })), onText: (t) => patch(id, () => ({ content: t })) });
       reply = r.text;
       const acts = mode === 'plan' ? [] : chatActions(reply).actions;
-      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length } });
-      patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs }));
+      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps) } });
+      patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool) }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
         const list = acts.map((a) => ({ ...a, task: a.task && refs[a.task], meeting: a.meeting && refs[a.meeting] }));
         const said = acts.map((a) => describeAction(a, refs, state)).filter(Boolean);
@@ -587,6 +589,7 @@ function AssistantView(ctx) {
       <div class="seg" style=${{ display: 'flex', gap: '6px' }}>
         <button class=${'btn sm' + (tab === 'chat' ? ' pri' : ' ghost')} onClick=${() => setTab('chat')}>Chat</button>
         <button class=${'btn sm' + (tab === 'memory' ? ' pri' : ' ghost')} onClick=${() => setTab('memory')}>What I know (${kinMem.items.length})</button>
+        <button class=${'btn sm' + (tab === 'test' ? ' pri' : ' ghost')} onClick=${() => setTab('test')}>Test</button>
       </div></header>
     <section class="panel" style=${{ marginBottom: '16px' }}>
       ${prefs.onDevice ? html`
@@ -649,7 +652,7 @@ function AssistantView(ctx) {
         <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Diana, or tell her about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
         ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
       </form>
-    </section>` : html`<div><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
+    </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
   </div>`;
 }
 
