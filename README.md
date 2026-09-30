@@ -36,6 +36,7 @@ The `server/` folder runs Steward's engine on your own computer: **Qwen3 32B via
 | `agent.js` | Tool loop, permission modes |
 | `server/` | Steward server for your computer (Ollama, sync, calendars, docs) |
 | `events.js` | History recording (changes, plan snapshots, Diana runs) |
+| `guard.js` | Conversation guard (anti-loop), obvious-context lookups, A–D replay test |
 | `sync.js` | Sync and calendar links through your Space |
 | `tools/lock.mjs`, `tools/gate.html` | Build the password-locked site into `dist/` |
 
