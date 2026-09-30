@@ -588,7 +588,12 @@ function applyAction(st, a) {
   const now = Date.now();
   const pri = (p) => (PRI[p] != null ? p : null);
   const projId = (name) => { if (!name) return null; const n = String(name).toLowerCase(); const p = st.projects.find((x) => x.name.toLowerCase() === n) || st.projects.find((x) => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase())); return p ? p.id : null; };
-  if (a.op === 'add' && a.title) return { ...st, tasks: [...st.tasks, { id: uid(), status: 'todo', priority: pri(a.priority) || 'med', duration: Math.max(5, +a.minutes || 30), deps: [], locked: [], spent: 0, created: now, title: String(a.title).slice(0, 200), deadline: parseDue(a.due, st), projectId: projId(a.project) }] };
+  if (a.op === 'project' && a.name) {
+    if (st.projects.some((x) => x.name.toLowerCase() === String(a.name).trim().toLowerCase())) return st;
+    const stages = Array.isArray(a.stages) ? a.stages.map((x) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 12) : [];
+    return { ...st, projects: [...st.projects, { id: uid(), name: String(a.name).trim().slice(0, 120), desc: a.desc ? String(a.desc).slice(0, 2000) : '', status: 'active', priority: pri(a.priority) || 'med', color: 'blue', start: sod(now), deadline: a.due ? parseDue(a.due, st) : null, stages, created: now }] };
+  }
+  if (a.op === 'add' && a.title) { const pid = projId(a.project); const p = pid && st.projects.find((x) => x.id === pid); return { ...st, tasks: [...st.tasks, { id: uid(), status: 'todo', priority: pri(a.priority) || 'med', duration: Math.max(5, +a.minutes || 30), deps: [], locked: [], spent: 0, created: now, title: String(a.title).slice(0, 200), deadline: parseDue(a.due, st), projectId: pid, stage: p && a.stage ? String(a.stage).slice(0, 60) : null }] }; }
   if (a.op === 'meeting' && a.title && parseDue(a.start, st)) { const s0 = parseDue(a.start, st); return { ...st, events: [...st.events, { id: uid(), kind: 'meeting', title: String(a.title).slice(0, 200), start: s0, end: s0 + Math.max(5, +a.minutes || 30) * MIN }] }; }
   if (a.op === 'move_meeting' && a.meeting && parseDue(a.start, st)) return { ...st, events: st.events.map((e) => (e.id === a.meeting && !e.src ? { ...e, start: parseDue(a.start, st), end: parseDue(a.start, st) + (e.end - e.start) } : e)) };
   if (!a.task || !st.tasks.some((t) => t.id === a.task)) return st;

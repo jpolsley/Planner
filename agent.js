@@ -8,7 +8,7 @@ const AGENT_MODES = {
   auto: { label: 'Auto for small changes', hint: 'Adding, rescheduling and reprioritizing happen right away (you can undo). Finishing or deleting still asks.' },
   plan: { label: 'Plan only', hint: 'Diana suggests but never changes your planner.' },
 };
-const AGENT_SMALL = new Set(['add', 'update', 'meeting', 'move_meeting']);
+const AGENT_SMALL = new Set(['add', 'update', 'meeting', 'move_meeting', 'project']);
 
 const AGENT_TOOLS_PROMPT = '\n\nBefore answering you may look things up. To use a tool, reply with ONLY a block like:\n```tool\n{"name":"search_tasks","args":{"query":"budget"}}\n```\nand nothing else; you will get the result and can use another tool (at most ' + AGENT_MAX_STEPS + ' in total) or answer. Tools:\n'
   + '- search_tasks {query?, status?: "open"|"done"|"blocked"|"doing", project?, due_within_days?}: matching tasks with T# refs, estimates, deadlines, schedule.\n'
