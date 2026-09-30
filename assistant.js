@@ -288,13 +288,32 @@ const kinPlain = (t) => String(t || '').replace(/^\s{0,3}#{1,6}\s+/gm, '').repla
 
 /* Pulls the ```actions block out of a reply. */
 function chatActions(text) {
-  const m = String(text).match(/```\s*actions\s*\n?([\s\S]*?)(```|$)/i);
+  const m = String(text).match(/```\s*actions\s*\n?([\s\S]*?)(```|$)/i) || String(text).match(/```\s*json\s*\n?(\[[\s\S]*?"op"[\s\S]*?\])\s*(```)/i);
   if (!m) return { clean: String(text), actions: [], partial: false };
   const clean = String(text).replace(m[0], '').trim();
   if (!m[2]) return { clean, actions: [], partial: true };
   try { const a = JSON.parse(m[1].trim().replace(/,\s*([}\]])/g, '$1')); return { clean, actions: (Array.isArray(a) ? a : [a]).filter((x) => x && x.op) }; }
   catch (e) { return { clean, actions: [], bad: true }; }
 }
+/* A separate, small request that asks only for the changes, as JSON. Small local models often say they'll make a
+ * change but don't write the block; asked on its own with a short prompt, they do much better. */
+const DIANA_OPS = KIN_BASE.slice(KIN_BASE.indexOf('Ops: '), KIN_BASE.indexOf('Use only the T# and M#'));
+const DIANA_CHANGE_ASK = /\b(add|create|make|set up|setup|schedule|move|reschedule|mark|finish|delete|remove|put|rename|change|push|book)\b|\b(do it|go ahead|yes please|sounds good|just add)\b/i;
+async function dianaExtractActions(history, reply, state, now) {
+  const refs = snapshotRefs(state, now);
+  const tasks = refs.tasks.map((t, i) => 'T' + (i + 1) + ' ' + t.title).join('\n');
+  const meets = refs.events.map((e, i) => 'M' + (i + 1) + ' ' + e.title + ' ' + fmtD(e.start) + ' ' + fmtT(e.start)).join('\n');
+  const convo = [...history.slice(-6), { role: 'assistant', content: reply }].map((m) => (m.role === 'user' ? 'User: ' : 'Diana: ') + String(m.content).replace(/```[\s\S]*?```/g, '').slice(0, 1200)).join('\n');
+  const sys = 'You turn a planner conversation into planner changes. Output only a JSON array of change objects, or [] if the user has not asked for a change.';
+  const user = 'Today is ' + isoDay(now) + ' (' + fmtD(now) + ').\nChange formats:\n' + DIANA_OPS + '\nProjects: ' + (state.projects.map((p) => p.name).join('; ') || 'none') + '\nOpen tasks:\n' + (tasks || 'none') + '\nMeetings:\n' + (meets || 'none')
+    + '\n\nConversation:\n' + convo + '\n\nWhat changes did the user ask for (including details agreed earlier in the conversation)? Output only the JSON array.';
+  const out = await kinAI.ask({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], baseSystem: sys, maxTokens: 500, temperature: 0, docs: false });
+  const m = String(out).match(/\[[\s\S]*\]/);
+  if (!m) return { actions: [], refs: refs.map };
+  try { const a = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1')); return { actions: (Array.isArray(a) ? a : [a]).filter((x) => x && x.op).slice(0, 12), refs: refs.map }; }
+  catch (e) { return { actions: [], refs: refs.map }; }
+}
+
 function describeAction(a, refs, state) {
   const task = (r) => state.tasks.find((t) => t.id === refs[r]);
   const ev = (r) => state.events.find((e) => e.id === refs[r]);
@@ -569,17 +588,17 @@ function AssistantView(ctx) {
       reply = r.text;
       const fakeBlock = /\[proposed changes\]/i.test(reply);
       let acts = mode === 'plan' ? [] : chatActions(reply).actions;
-      // She said she'd change something but gave no changes: ask once for just the changes, else say so.
+      // She said she'd change something, or the user asked for one, but no changes came back: ask separately, once.
       let repaired = null;
-      if (mode !== 'plan' && !acts.length && (/\b(i['’]ll|i will|i['’]ve|i have|let me|i['’]m going to|i can)\s+(go ahead and\s+)?(add|create|set up|make|move|mark|schedule|update|put)\b/i.test(reply) || /\[proposed changes\]/i.test(reply))) {
+      const claimed = /\b(i['’]ll|i will|i['’]ve|i have|let me|i['’]m going to|i can)\s+(go ahead and\s+)?(add|create|set up|make|move|mark|schedule|update|put)\b/i.test(reply) || fakeBlock;
+      if (mode !== 'plan' && !acts.length && (claimed || DIANA_CHANGE_ASK.test(text))) {
         try {
-          const fix = await kinAI.ask({ messages: [{ role: 'system', content: system }, ...history, { role: 'assistant', content: reply }, { role: 'user', content: '[Steward, not the user:] Your reply says you will make a change but has no actions block. Reply with ONLY the ```actions block for exactly what you said, using the ops listed. If no op can do it, reply NONE.' }], maxTokens: 400, temperature: 0, docs: false });
-          acts = chatActions(fix).actions;
-          repaired = acts.length ? 'fixed' : 'none';
-          if (acts.length) reply = reply.replace(/\s*\[proposed changes\]\s*/gi, '\n\n').replace(/\s*$/, '') + '\n\n' + fix.match(/```\s*actions[\s\S]*?```/i)[0];
-        } catch (e) { repaired = 'error'; }
+          patch(id, () => ({ content: reply, steps: ['Preparing the change'] }));
+          const ex = await dianaExtractActions(history.slice(0, -1).concat([{ role: 'user', content: text }]), reply, state, Date.now());
+          if (ex.actions.length) { acts = ex.actions; Object.assign(refs, ex.refs); reply = reply.replace(/\s*\[proposed changes\]\s*/gi, '\n\n').replace(/\s*$/, '') + '\n\n```actions\n' + JSON.stringify(acts) + '\n```'; repaired = 'fixed'; }
+          else repaired = claimed ? 'none' : null;
+        } catch (e) { repaired = claimed ? 'error' : null; }
       }
-      if (typeof stewardEvents === 'object') stewardEvents.record('diana_run', { entity: 'diana', actor: 'diana', corr: run, proposal: acts.length ? id : null, data: { question: text.slice(0, 500), context_hash: syncHash(system), steps: r.steps.map((x) => ({ tool: x.tool, args: x.args, obs: x.obs })), proposed: acts, mode, model: kinAI.model ? kinAI.model.name : null, reply_len: (reply || '').length, surface: 'page', active_context: actx ? { type: actx.type, id: actx.id, view: actx.view } : { view: 'diana' }, ...meta, diag: guardDiag(reply, r.steps), repaired } });
       if (fakeBlock && !acts.length) reply = reply.replace(/\s*\[proposed changes\]\s*/gi, '\n\n').trim();
       patch(id, (x) => ({ content: reply || x.content, pending: false, actions: acts, refs, steps: r.steps.map((x) => x.tool), note: repaired === 'none' || repaired === 'error' ? 'Diana didn’t actually change anything. Try asking again, or make the change yourself.' : null }));
       if (mode === 'auto' && acts.length && acts.every((a) => AGENT_SMALL.has(a.op))) {
