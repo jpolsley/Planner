@@ -386,42 +386,76 @@ select.ghostin{text-align-last:right}
 @media (prefers-reduced-motion:no-preference){.blk,.nav,.btn{transition:background .15s,border-color .15s,box-shadow .15s}}
 
 /* ================= Diana material =================
- * Steward is the grounded, off-white workspace. Diana is a darker, reactive layer inside it.
- * One primitive: .diana-surface (dark shell + 1.5px chromatic edge that travels slowly around it).
- * States: idle (default) · focused (.diana-surface--focused or :focus-within) · thinking · proposal; size: --compact.
- * The edge is a rotating conic gradient on an oversized pseudo-element clipped by the shell, so the animation is a
- * compositor-only transform: no JS, no canvas, no repainting large areas. Without motion it is a static edge. */
+ * Steward is the grounded, off-white workspace. Diana is dark glass inside it.
+ * The material does the work, not the border: layered translucent shell, top specular highlight, faint internal
+ * refraction, soft depth at the edges, and light that moves through the glass. The edge stays mostly neutral; one small
+ * amber→teal glint drifts around it.
+ * Layers: host background = the edge (lit at the top, darker at the sides) · ::before = the glint (rotating, transform-only)
+ * · ::after = the glass shell (translucent layers + backdrop blur + inner highlights) · .diana-sheen = moving specular light.
+ * States: idle · focused (.diana-surface--focused or :focus-within) · thinking · proposal; size: --compact.
+ * All motion is transform/opacity on small layers: no JS loop, no canvas. */
 :root{
-  --diana-bg:#0d0d0e; --diana-bg-raised:#161617; --diana-bg-inset:#08080a; --diana-ctl:#1c1c1e; --diana-ctl-hover:#242426;
-  --diana-hairline:#2a2a2c; --diana-border:rgba(255,255,255,.08); --diana-highlight:rgba(255,255,255,.07);
-  --diana-text:#f4f4f2; --diana-muted:#a8a8a4; --diana-faint:#72726e;
+  --diana-bg:#0d0d0e; --diana-ctl:rgba(255,255,255,.055); --diana-ctl-hover:rgba(255,255,255,.09);
+  --diana-border:rgba(255,255,255,.09); --diana-highlight:rgba(255,255,255,.16);
+  --diana-text:#f4f4f2; --diana-muted:#a8a8a4; --diana-faint:#76766f;
   --diana-amber:#ff9a3d; --diana-cyan:#55d8d0; --diana-indigo:#8176ff;
+  --diana-glass-top:rgba(34,34,38,.8); --diana-glass-bottom:rgba(10,10,12,.9);
+  --diana-reflect:.15; --diana-refract:0; --diana-glow:0;
   --diana-radius-lg:20px; --diana-radius-md:16px; --diana-radius-sm:12px; --diana-radius-xs:9px;
-  --diana-edge:1.5px; --diana-edge-speed:18s; --diana-ease:cubic-bezier(.2,.7,.2,1);
+  --diana-edge:1px; --diana-glint-speed:26s; --diana-sheen-speed:5.5s; --diana-ease:cubic-bezier(.2,.7,.2,1);
 }
-.diana-surface{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--diana-radius-lg);color:var(--diana-text);background:var(--diana-hairline);
-  box-shadow:0 18px 40px -22px rgba(20,15,5,.55),0 2px 6px -2px rgba(20,15,5,.25);transition:box-shadow .22s var(--diana-ease),transform .22s var(--diana-ease)}
+.diana-surface{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--diana-radius-lg);color:var(--diana-text);
+  background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,.06) 30%,rgba(255,255,255,.03) 70%,rgba(255,255,255,.12)),#141416;
+  box-shadow:0 1px 2px rgba(20,15,5,.18),0 10px 22px -16px rgba(20,15,5,.45);transition:box-shadow .22s var(--diana-ease)}
 .diana-surface::before{content:"";position:absolute;left:50%;top:50%;width:170%;aspect-ratio:1;z-index:-2;pointer-events:none;
-  background:conic-gradient(from 0deg,transparent 0 6%,color-mix(in srgb,var(--diana-amber) 85%,transparent) 13%,transparent 21% 37%,color-mix(in srgb,var(--diana-cyan) 75%,transparent) 45%,transparent 53% 70%,color-mix(in srgb,var(--diana-indigo) 70%,transparent) 75%,transparent 80% 100%);
-  transform:translate(-50%,-50%) rotate(0deg);opacity:.32;transition:opacity .25s var(--diana-ease);animation:diana-edge var(--diana-edge-speed) linear infinite;will-change:transform}
+  background:conic-gradient(from 0deg,transparent 0 84%,color-mix(in srgb,var(--diana-amber) 75%,transparent) 89%,color-mix(in srgb,var(--diana-cyan) 70%,transparent) 93%,transparent 97% 100%);
+  transform:translate(-50%,-50%) rotate(0deg);opacity:.35;transition:opacity .3s var(--diana-ease);animation:diana-glint var(--diana-glint-speed) linear infinite;will-change:transform}
 .diana-surface::after{content:"";position:absolute;inset:var(--diana-edge);z-index:-1;pointer-events:none;border-radius:calc(var(--diana-radius-lg) - var(--diana-edge));
-  background:radial-gradient(120% 90% at 20% -10%,rgba(255,255,255,.055),transparent 55%),linear-gradient(180deg,var(--diana-bg-raised),var(--diana-bg));box-shadow:inset 0 1px 0 var(--diana-highlight)}
-@keyframes diana-edge{to{transform:translate(-50%,-50%) rotate(360deg)}}
-.diana-surface:hover,.diana-surface:focus-within,.diana-surface--focused{box-shadow:0 22px 46px -22px rgba(20,15,5,.6),0 2px 6px -2px rgba(20,15,5,.25)}
+  background:
+    radial-gradient(130% 80% at 50% -38%,rgba(255,255,255,var(--diana-reflect)),transparent 62%),
+    radial-gradient(70% 90% at 108% 115%,rgba(85,216,208,var(--diana-refract)),transparent 60%),
+    radial-gradient(60% 80% at -8% 120%,rgba(255,154,61,calc(var(--diana-refract) * .7)),transparent 60%),
+    radial-gradient(90% 70% at 50% 50%,rgba(255,255,255,var(--diana-glow)),transparent 70%),
+    linear-gradient(180deg,var(--diana-glass-top),var(--diana-glass-bottom));
+  -webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:inset 0 1px 0 var(--diana-highlight),inset 0 -1px 0 rgba(255,255,255,.04),inset 0 0 0 1px rgba(255,255,255,.025),inset 0 -24px 32px -26px rgba(0,0,0,.7),inset 0 18px 26px -24px rgba(255,255,255,.08);
+  transition:--diana-reflect .3s,--diana-refract .3s,--diana-glow .4s}
+@property --diana-reflect{syntax:'<number>';inherits:true;initial-value:.15}
+@property --diana-refract{syntax:'<number>';inherits:true;initial-value:0}
+@property --diana-glow{syntax:'<number>';inherits:true;initial-value:0}
+@keyframes diana-glint{to{transform:translate(-50%,-50%) rotate(360deg)}}
+/* moving specular light: a soft diagonal band that crosses the glass */
+.diana-sheen{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;overflow:hidden}
+.diana-sheen::before{content:"";position:absolute;top:-40%;bottom:-40%;left:0;width:60%;
+  background:linear-gradient(100deg,transparent 0,rgba(255,255,255,.05) 35%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.05) 62%,transparent 100%);
+  transform:translateX(-120%) skewX(-12deg);opacity:0;transition:opacity .4s}
+.diana-surface > :not(.diana-sheen){position:relative;z-index:1}
+/* idle: calm glass, one dim reflection, the glint barely moving */
+.diana-surface:hover{--diana-reflect:.18}
 .diana-surface:hover::before{opacity:.5}
-.diana-surface:focus-within::before,.diana-surface--focused::before{opacity:.68}
-.diana-surface--thinking::before{opacity:.9;background:conic-gradient(from 0deg,transparent 0 4%,var(--diana-amber) 12%,transparent 22% 34%,var(--diana-cyan) 44%,transparent 55% 68%,var(--diana-indigo) 75%,transparent 82% 100%)}
-.diana-surface--thinking::after{background:radial-gradient(120% 90% at 20% -10%,rgba(255,255,255,.075),transparent 55%),linear-gradient(180deg,#19191b,var(--diana-bg))}
-.diana-surface--proposal{border-radius:var(--diana-radius-md)}
+/* focused: the top reflection clears, a little amber/teal refraction appears */
+.diana-surface:focus-within,.diana-surface--focused{--diana-reflect:.22;--diana-refract:.1;box-shadow:0 1px 2px rgba(20,15,5,.18),0 14px 26px -16px rgba(20,15,5,.5)}
+.diana-surface:focus-within::before,.diana-surface--focused::before{opacity:.65}
+/* thinking: light travels through the glass and the inside lifts slightly */
+.diana-surface--thinking{--diana-reflect:.2;--diana-refract:.12;--diana-glow:.05}
+.diana-surface--thinking::before{opacity:.8}
+.diana-surface--thinking .diana-sheen::before{opacity:1;animation:diana-sheen var(--diana-sheen-speed) var(--diana-ease) infinite}
+@keyframes diana-sheen{0%{transform:translateX(-120%) skewX(-12deg)}55%,100%{transform:translateX(260%) skewX(-12deg)}}
+/* proposal: a steady, deliberate card */
+.diana-surface--proposal{border-radius:var(--diana-radius-md);--diana-reflect:.18;--diana-refract:.07}
 .diana-surface--proposal::after{border-radius:calc(var(--diana-radius-md) - var(--diana-edge))}
-.diana-surface--proposal::before{opacity:.6}
-.diana-surface--compact{border-radius:var(--diana-radius-xs);--diana-edge:1px;box-shadow:0 4px 12px -6px rgba(20,15,5,.45)}
-.diana-surface--compact::after{border-radius:calc(var(--diana-radius-xs) - 1px)}
-.diana-surface--compact::before{animation:none;transform:translate(-50%,-50%) rotate(35deg);opacity:.5}
-.diana-surface--compact:hover::before{opacity:.8}
+.diana-surface--proposal::before{opacity:.55}
+/* a proposal arriving: light passes through it once */
+.diana-surface--proposal .diana-sheen::before{opacity:1;animation:diana-sheen 2.2s var(--diana-ease) .15s 1 both}
+/* compact: small Ask Diana buttons; static glint, no moving light */
+.diana-surface--compact{border-radius:var(--diana-radius-xs);box-shadow:0 1px 2px rgba(20,15,5,.2),0 4px 10px -6px rgba(20,15,5,.45)}
+.diana-surface--compact::after{border-radius:calc(var(--diana-radius-xs) - 1px);-webkit-backdrop-filter:none;backdrop-filter:none}
+.diana-surface--compact::before{animation:none;transform:translate(-50%,-50%) rotate(200deg);opacity:.55}
+.diana-surface--compact:hover::before{opacity:.85}
 /* inside: matte, stable controls */
 .diana-surface ::placeholder{color:var(--diana-faint)}
 .diana-surface .btn,.diana-surface .in,.diana-surface select{background:var(--diana-ctl);border-color:var(--diana-border);color:var(--diana-text)}
+.diana-surface select option{background:#1a1a1c;color:var(--diana-text)}
 .diana-surface .btn:hover{background:var(--diana-ctl-hover);border-color:rgba(255,255,255,.16)}
 .diana-surface .btn.ghost{background:transparent;border-color:transparent;color:var(--diana-muted)}
 .diana-surface .btn.ghost:hover{color:var(--diana-text);background:var(--diana-ctl)}
@@ -478,8 +512,10 @@ select.ghostin{text-align-last:right}
 .diana-ask{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font:500 13px var(--f-body);border:0;cursor:pointer;color:var(--diana-text)}
 .diana-ask .diana-mark{width:13px;height:13px;color:var(--diana-muted)}
 @media (prefers-reduced-motion:reduce){
-  .diana-surface::before{animation:none;transform:translate(-50%,-50%) rotate(35deg)}
-  .diana-surface,.diana-surface::before{transition:none}
+  .diana-surface::before{animation:none;transform:translate(-50%,-50%) rotate(200deg)}
+  .diana-surface--thinking .diana-sheen::before{animation:none;opacity:.6;transform:translateX(60%) skewX(-12deg)}
+  .diana-surface--proposal .diana-sheen::before{animation:none;opacity:0}
+  .diana-surface,.diana-surface::before,.diana-surface::after,.diana-sheen::before{transition:none}
 }
 @media (max-width:860px){.dlog{padding:16px}.dc-row input{font-size:16px}.diana-composer{bottom:calc(74px + env(safe-area-inset-bottom,0px))}.dc-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dc-tools::-webkit-scrollbar{display:none}.dc-chip,.dc-tools label,.dc-state{flex:none}}
 </style>
