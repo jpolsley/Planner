@@ -453,19 +453,57 @@ select.ghostin{text-align-last:right}
 .diana-surface--compact::before{animation:none;transform:translate(-50%,-50%) rotate(200deg);opacity:.55}
 .diana-surface--compact:hover::before{opacity:.85}
 /* inside: matte, stable controls */
-.diana-surface ::placeholder{color:var(--diana-faint)}
-.diana-surface .btn,.diana-surface .in,.diana-surface select{background:var(--diana-ctl);border-color:var(--diana-border);color:var(--diana-text)}
-.diana-surface select option{background:#1a1a1c;color:var(--diana-text)}
-.diana-surface .btn:hover{background:var(--diana-ctl-hover);border-color:rgba(255,255,255,.16)}
-.diana-surface .btn.ghost{background:transparent;border-color:transparent;color:var(--diana-muted)}
-.diana-surface .btn.ghost:hover{color:var(--diana-text);background:var(--diana-ctl)}
-.diana-surface .btn.pri{background:var(--diana-text);border-color:var(--diana-text);color:#111}
-.diana-surface .btn.pri:hover{background:#fff}
-.diana-surface .btn:disabled{opacity:.45}
-.diana-surface .muted,.diana-surface .small.muted{color:var(--diana-muted)}
-.diana-surface input[type=checkbox]{accent-color:var(--diana-text)}
+:is(.diana-surface,.diana-bar) ::placeholder{color:var(--diana-faint)}
+:is(.diana-surface,.diana-bar) .btn,:is(.diana-surface,.diana-bar) .in,:is(.diana-surface,.diana-bar) select{background:var(--diana-ctl);border-color:var(--diana-border);color:var(--diana-text)}
+:is(.diana-surface,.diana-bar) select option{background:#1a1a1c;color:var(--diana-text)}
+:is(.diana-surface,.diana-bar) .btn:hover{background:var(--diana-ctl-hover);border-color:rgba(255,255,255,.16)}
+:is(.diana-surface,.diana-bar) .btn.ghost{background:transparent;border-color:transparent;color:var(--diana-muted)}
+:is(.diana-surface,.diana-bar) .btn.ghost:hover{color:var(--diana-text);background:var(--diana-ctl)}
+:is(.diana-surface,.diana-bar) .btn.pri{background:var(--diana-text);border-color:var(--diana-text);color:#111}
+:is(.diana-surface,.diana-bar) .btn.pri:hover{background:#fff}
+:is(.diana-surface,.diana-bar) .btn:disabled{opacity:.45}
+:is(.diana-surface,.diana-bar) .muted,:is(.diana-surface,.diana-bar) .small.muted{color:var(--diana-muted)}
+:is(.diana-surface,.diana-bar) input[type=checkbox]{accent-color:var(--diana-text)}
 .diana-label{font:500 10.5px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--diana-faint)}
 .diana-mark{width:15px;height:15px;flex:none}
+/* ===== Diana bar: the primary composer =====
+ * One physical piece of dark smoked glass inside a slowly moving colored rim (cyan → violet → amber/copper), with a soft
+ * spill of that color just outside the edge. The motion is the light moving around the perimeter; nothing sweeps across
+ * the glass. The angle animates in 1° steps (smooth at this speed, far fewer repaints than every frame). */
+@property --diana-angle{syntax:'<angle>';inherits:false;initial-value:0deg}
+:root{--diana-violet:#8e72ff;--diana-copper:#ff8736;--diana-gold:#ffbd55;--diana-teal:#4adbd5;--diana-aurora-speed:20s}
+.diana-bar{position:relative;isolation:isolate;padding:2px;border-radius:24px;color:var(--diana-text);
+  background:conic-gradient(from var(--diana-angle),rgba(74,219,213,.95) 0deg,rgba(74,219,213,.3) 42deg,rgba(142,114,255,.78) 92deg,rgba(142,114,255,.28) 142deg,rgba(255,135,54,.36) 200deg,rgba(255,135,54,.95) 250deg,rgba(255,189,85,.6) 295deg,rgba(74,219,213,.88) 360deg);
+  box-shadow:0 22px 42px -28px rgba(14,14,16,.72),0 4px 14px -9px rgba(14,14,16,.55);
+  animation:diana-aurora var(--diana-aurora-speed) steps(360) infinite}
+.diana-bar::before{content:"";position:absolute;inset:-7px;z-index:-2;border-radius:30px;pointer-events:none;
+  background:conic-gradient(from var(--diana-angle),rgba(74,219,213,.6),rgba(142,114,255,.32) 25%,rgba(255,135,54,.64) 63%,rgba(255,189,85,.3) 78%,rgba(74,219,213,.54));
+  filter:blur(13px);opacity:.36;animation:diana-aurora var(--diana-aurora-speed) steps(360) infinite;transition:opacity .3s ease}
+.diana-bar::after{content:"";position:absolute;left:5%;right:5%;bottom:-16px;height:26px;z-index:-3;border-radius:50%;background:rgba(20,20,22,.18);filter:blur(16px);pointer-events:none}
+@keyframes diana-aurora{to{--diana-angle:360deg}}
+.diana-bar-glass{position:relative;overflow:hidden;border-radius:22px;
+  background:radial-gradient(130% 115% at 9% -28%,rgba(255,255,255,.15),transparent 47%),radial-gradient(80% 90% at 105% 118%,rgba(74,219,213,.07),transparent 60%),radial-gradient(70% 90% at -8% 120%,rgba(255,135,54,.06),transparent 58%),linear-gradient(180deg,rgba(36,37,40,.95),rgba(12,12,14,.98));
+  border:1px solid rgba(255,255,255,.07);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(255,255,255,.05),inset 0 24px 42px -38px rgba(255,255,255,.22),inset 0 -28px 50px -42px rgba(0,0,0,.95);
+  -webkit-backdrop-filter:blur(20px) saturate(145%);backdrop-filter:blur(20px) saturate(145%)}
+.diana-bar-glass::before{content:"";position:absolute;left:7%;right:7%;top:0;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(255,255,255,.34) 22%,rgba(255,255,255,.08) 60%,transparent);opacity:.75}
+.diana-bar:focus-within::before{opacity:.52}
+.diana-bar.is-thinking{--diana-aurora-speed:10s}
+.diana-bar.is-thinking::before{opacity:.55}
+.diana-bar .dc-row{padding:20px 16px 8px 22px}
+.diana-bar .dc-row input{font-size:18px;letter-spacing:-.01em}
+.diana-bar .dc-row input::placeholder{color:#a9a9a5}
+.diana-bar .dc-tools{gap:8px;padding:8px 14px 14px 18px}
+.diana-bar .dc-ctx{padding:16px 20px 0}
+.diana-bar .dc-chip{border-radius:11px;min-height:34px;padding:0 13px;color:#d8d8d4;border-color:rgba(255,255,255,.1);
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012)),rgba(255,255,255,.05);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 4px 10px -7px rgba(0,0,0,.9);transition:background .18s,border-color .18s,color .18s}
+.diana-bar .dc-chip:hover:not(:disabled){background:rgba(255,255,255,.095);border-color:rgba(255,255,255,.17);color:#fff}
+.diana-bar .dc-state i{background:#656562;transition:background .2s,box-shadow .2s}
+.diana-bar:focus-within .dc-state i{background:var(--diana-teal);box-shadow:0 0 9px rgba(74,219,213,.65)}
+.diana-bar.is-thinking .dc-state i{background:var(--diana-copper);box-shadow:0 0 11px rgba(255,135,54,.72)}
+.diana-bar.is-thinking .dc-state{color:#aaa9a5}
+@media (prefers-reduced-motion:reduce){.diana-bar,.diana-bar::before{animation:none;--diana-angle:305deg}}
 /* composer */
 .diana-composer{margin:14px 0 0}
 .dc-ctx{display:flex;align-items:center;gap:10px;padding:12px 16px 0}
@@ -487,7 +525,7 @@ select.ghostin{text-align-last:right}
 .diana-surface--focused .dc-state i,.diana-surface:focus-within .dc-state i{background:var(--diana-cyan)}
 /* conversation: editorial, not messenger bubbles */
 .dlog{display:flex;flex-direction:column;gap:22px;padding:22px 24px 26px;min-height:240px}
-.diana-composer{position:sticky;bottom:14px;z-index:5}
+.diana-composer{position:sticky;bottom:18px;z-index:5}
 .dmsg{max-width:72ch}
 .dmsg .who{display:flex;align-items:center;gap:7px;margin-bottom:6px}
 .dmsg .who .diana-mark{width:13px;height:13px;color:var(--ink-2)}

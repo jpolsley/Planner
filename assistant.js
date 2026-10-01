@@ -716,8 +716,7 @@ function AssistantView(ctx) {
         ${pendingText ? html`<div class="dmsg user"><div class="who"><span class="diana-label">You</span></div><div class="body">${pendingText}</div><div class="small muted" style=${{ marginTop: '4px' }}>Diana is loading and will reply when she’s ready…</div></div>` : null}
         <div ref=${endRef}></div>
       </div>
-      <div class=${'diana-surface diana-composer' + (thinking ? ' diana-surface--thinking' : '')}>
-        <i class="diana-sheen" aria-hidden="true"></i>
+      <div class=${'diana-bar diana-composer' + (thinking ? ' is-thinking' : '')}><div class="diana-bar-glass">
         ${ci ? html`<div class="dc-ctx" title="Diana gets the details of this with each message"><span class="diana-label">Looking at</span><b>${ci.label.replace(/^(Project|Task|Decision): /, '')}</b><button class="x" onClick=${clearCtx} aria-label="Stop talking about this">×</button></div>` : null}
         <form class="dc-row" onSubmit=${(e) => { e.preventDefault(); send(); }}>
           <${Icon} n="diana" cls="diana-mark" />
@@ -731,7 +730,7 @@ function AssistantView(ctx) {
           <label class="diana-label" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Diana may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
           ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}
         </div>
-      </div>
+      </div></div>
     </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${DocsPanel} setToast=${setToast} /><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
   </div>`;
 }
