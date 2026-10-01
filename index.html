@@ -1,19 +1,20 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Steward</title>
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#e7e5e0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Monochrome: black base, grey and white text; color only on tags (meetings, priorities, alerts). */
 :root{
-  color-scheme:dark;
-  --ground:#000000; --surface:#0c0c0c; --sunk:#161616; --line:#242424; --line-2:#363636;
-  --ink:#f2f2f2; --ink-2:#a6a6a6; --ink-3:#6e6e6e;
-  --accent:#f2f2f2; --accent-2:#ffffff; --accent-soft:#1f1f1f; --on-accent:#000000;
-  --meet:#8e96d8; --meet-soft:#1a1c2c; --meet-ink:#c9cdf2;
-  --task:#bdbdbd; --task-soft:#1a1a1a;
-  --warn:#e0a24a; --warn-soft:#2e2412; --bad:#ec7b70; --bad-soft:#331a18; --good:#7cc68a;
-  --shadow:none;
+  color-scheme:light;
+  /* Steward: a warm off-white workspace. Diana has her own dark material (see --diana-*). */
+  --ground:#e7e5e0; --surface:#f6f5f2; --sunk:#eceae5; --line:#dcd9d3; --line-2:#cbc8c1;
+  --ink:#1c1d1f; --ink-2:#4a4c4f; --ink-3:#7c7e81;
+  --accent:#1f2022; --accent-2:#000000; --accent-soft:#e0ded8; --on-accent:#ffffff;
+  --meet:#5d70d4; --meet-soft:#e4e7f7; --meet-ink:#33429c;
+  --task:#5a5c60; --task-soft:#ebe9e4;
+  --warn:#b26a12; --warn-soft:#f4e6d1; --bad:#c4473d; --bad-soft:#f6dedb; --good:#2f8a55;
+  --shadow:0 1px 0 rgba(255,255,255,.7) inset,0 6px 18px -8px rgba(30,25,15,.18);
   --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --f-body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -115,7 +116,7 @@ svg{width:18px;height:18px;flex:none}
 .blk{position:absolute;left:4px;right:4px;border-radius:8px;padding:4px 8px;font-size:12.5px;line-height:1.25;overflow:hidden;cursor:grab;touch-action:none;user-select:none;z-index:2}
 .blk b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .blk small{font:500 10.5px var(--f-mono);opacity:.8}
-.blk.ev{background:var(--meet);color:#0b0d1f;border:1px solid var(--meet)}
+.blk.ev{background:var(--meet-soft);color:var(--meet-ink);border:1px solid var(--meet)}
 .blk.tk{background:var(--task-soft);color:var(--ink);border:1.5px dashed var(--task)}
 .blk.tk.lock{border-style:solid}
 .blk.tk.late{border-color:var(--bad);background:var(--bad-soft)}
@@ -142,7 +143,7 @@ svg{width:18px;height:18px;flex:none}
 .pill{font:500 10.5px var(--f-mono);padding:3px 7px;border-radius:999px;background:var(--sunk);color:var(--ink-2);white-space:nowrap}
 .pill.bad{background:var(--bad-soft);color:var(--bad)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.ok{background:var(--accent-soft);color:var(--accent-2)}
 /* drawer / modal */
-.scrim{position:fixed;inset:0;background:rgba(10,15,13,.35);z-index:40;display:flex;justify-content:flex-end}
+.scrim{position:fixed;inset:0;background:rgba(40,36,30,.28);z-index:40;display:flex;justify-content:flex-end}
 .drawer{width:min(460px,100%);height:100%;background:var(--surface);border-left:1px solid var(--line);overflow:auto;padding-block:20px 40px;padding-inline:22px;display:flex;flex-direction:column;gap:14px;padding-top:calc(20px + env(safe-area-inset-top,0px))}
 .modal{margin:auto;width:min(620px,calc(100% - 32px));max-height:88%;overflow:auto;background:var(--surface);border-radius:16px;border:1px solid var(--line);padding:22px;display:flex;flex-direction:column;gap:14px}
 .fld{display:flex;flex-direction:column;gap:5px}
@@ -292,9 +293,9 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .kb .bcard:focus-visible{outline:2px solid var(--ink-2);outline-offset:1px}
 .kb.dragging,.kb.dragging *{cursor:grabbing}
 .bcard.lifted{opacity:.3}
-.bghost{position:fixed;z-index:80;pointer-events:none;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;box-shadow:0 14px 34px rgba(0,0,0,.5);transform:rotate(1.5deg)}
+.bghost{position:fixed;z-index:80;pointer-events:none;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;box-shadow:0 14px 34px rgba(30,25,15,.22);transform:rotate(1.5deg)}
 .bc-top{display:flex;gap:8px;align-items:flex-start}.bc-top b{font-weight:560;line-height:1.3;min-width:0;overflow-wrap:anywhere}
-.bcard .ck{width:18px;height:18px;margin-top:1px;border-radius:50%;border:1.5px solid var(--ink-3);background:none;display:grid;place-items:center;padding:0;flex:none;color:#000}
+.bcard .ck{width:18px;height:18px;margin-top:1px;border-radius:50%;border:1.5px solid var(--ink-3);background:none;display:grid;place-items:center;padding:0;flex:none;color:#fff}
 .bcard .ck svg{width:12px;height:12px}.bcard.dn .ck{background:var(--good);border-color:var(--good)}
 .bc-meta{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;font:500 11px var(--f-mono);color:var(--ink-3);padding-left:26px}
 .bc-meta svg{width:12px;height:12px;vertical-align:-2px;margin-right:3px}
@@ -319,7 +320,7 @@ textarea.in{resize:vertical;min-height:80px;line-height:1.5}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:6px 12px 12px;font-size:13px}
 .kv label{color:var(--ink-3)}.kv>*:nth-child(even){justify-self:end;text-align:right}
 .kv-v{color:var(--ink-2)}
-.ghostin{background:none;border:1px solid transparent;border-radius:8px;padding:5px 6px;color:var(--ink);font:inherit;font-size:13px;text-align:right;max-width:190px;color-scheme:dark}
+.ghostin{background:none;border:1px solid transparent;border-radius:8px;padding:5px 6px;color:var(--ink);font:inherit;font-size:13px;text-align:right;max-width:190px;color-scheme:light}
 .ghostin:hover,.ghostin:focus{border-color:var(--line-2);outline:none}
 select.ghostin{text-align-last:right}
 .npm{max-width:880px;width:min(880px,calc(100% - 24px));padding:0;flex-direction:row;gap:0;min-height:min(560px,80vh)}
@@ -344,7 +345,7 @@ select.ghostin{text-align-last:right}
 .stg-t{display:flex;align-items:center;gap:10px;padding:6px 2px}
 .stg-t .ck{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ink-3);background:none;display:grid;place-items:center;padding:0;flex:none}
 .stg-t .ck svg{width:12px;height:12px}
-.stg-t.dn .ck{background:var(--good);border-color:var(--good);color:#000}
+.stg-t.dn .ck{background:var(--good);border-color:var(--good);color:#fff}
 .stg-t .tt{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stg-t.dn .tt{color:var(--ink-3);text-decoration:line-through}
 .stg-t .mono{font-size:11.5px;white-space:nowrap}
@@ -383,6 +384,104 @@ select.ghostin{text-align-last:right}
   .now h3{font-size:19px}
 }
 @media (prefers-reduced-motion:no-preference){.blk,.nav,.btn{transition:background .15s,border-color .15s,box-shadow .15s}}
+
+/* ================= Diana material =================
+ * Steward is the grounded, off-white workspace. Diana is a darker, reactive layer inside it.
+ * One primitive: .diana-surface (dark shell + 1.5px chromatic edge that travels slowly around it).
+ * States: idle (default) · focused (.diana-surface--focused or :focus-within) · thinking · proposal; size: --compact.
+ * The edge is a rotating conic gradient on an oversized pseudo-element clipped by the shell, so the animation is a
+ * compositor-only transform: no JS, no canvas, no repainting large areas. Without motion it is a static edge. */
+:root{
+  --diana-bg:#0d0d0e; --diana-bg-raised:#161617; --diana-bg-inset:#08080a; --diana-ctl:#1c1c1e; --diana-ctl-hover:#242426;
+  --diana-hairline:#2a2a2c; --diana-border:rgba(255,255,255,.08); --diana-highlight:rgba(255,255,255,.07);
+  --diana-text:#f4f4f2; --diana-muted:#a8a8a4; --diana-faint:#72726e;
+  --diana-amber:#ff9a3d; --diana-cyan:#55d8d0; --diana-indigo:#8176ff;
+  --diana-radius-lg:20px; --diana-radius-md:16px; --diana-radius-sm:12px; --diana-radius-xs:9px;
+  --diana-edge:1.5px; --diana-edge-speed:18s; --diana-ease:cubic-bezier(.2,.7,.2,1);
+}
+.diana-surface{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--diana-radius-lg);color:var(--diana-text);background:var(--diana-hairline);
+  box-shadow:0 18px 40px -22px rgba(20,15,5,.55),0 2px 6px -2px rgba(20,15,5,.25);transition:box-shadow .22s var(--diana-ease),transform .22s var(--diana-ease)}
+.diana-surface::before{content:"";position:absolute;left:50%;top:50%;width:170%;aspect-ratio:1;z-index:-2;pointer-events:none;
+  background:conic-gradient(from 0deg,transparent 0 6%,color-mix(in srgb,var(--diana-amber) 85%,transparent) 13%,transparent 21% 37%,color-mix(in srgb,var(--diana-cyan) 75%,transparent) 45%,transparent 53% 70%,color-mix(in srgb,var(--diana-indigo) 70%,transparent) 75%,transparent 80% 100%);
+  transform:translate(-50%,-50%) rotate(0deg);opacity:.32;transition:opacity .25s var(--diana-ease);animation:diana-edge var(--diana-edge-speed) linear infinite;will-change:transform}
+.diana-surface::after{content:"";position:absolute;inset:var(--diana-edge);z-index:-1;pointer-events:none;border-radius:calc(var(--diana-radius-lg) - var(--diana-edge));
+  background:radial-gradient(120% 90% at 20% -10%,rgba(255,255,255,.055),transparent 55%),linear-gradient(180deg,var(--diana-bg-raised),var(--diana-bg));box-shadow:inset 0 1px 0 var(--diana-highlight)}
+@keyframes diana-edge{to{transform:translate(-50%,-50%) rotate(360deg)}}
+.diana-surface:hover,.diana-surface:focus-within,.diana-surface--focused{box-shadow:0 22px 46px -22px rgba(20,15,5,.6),0 2px 6px -2px rgba(20,15,5,.25)}
+.diana-surface:hover::before{opacity:.5}
+.diana-surface:focus-within::before,.diana-surface--focused::before{opacity:.68}
+.diana-surface--thinking::before{opacity:.9;background:conic-gradient(from 0deg,transparent 0 4%,var(--diana-amber) 12%,transparent 22% 34%,var(--diana-cyan) 44%,transparent 55% 68%,var(--diana-indigo) 75%,transparent 82% 100%)}
+.diana-surface--thinking::after{background:radial-gradient(120% 90% at 20% -10%,rgba(255,255,255,.075),transparent 55%),linear-gradient(180deg,#19191b,var(--diana-bg))}
+.diana-surface--proposal{border-radius:var(--diana-radius-md)}
+.diana-surface--proposal::after{border-radius:calc(var(--diana-radius-md) - var(--diana-edge))}
+.diana-surface--proposal::before{opacity:.6}
+.diana-surface--compact{border-radius:var(--diana-radius-xs);--diana-edge:1px;box-shadow:0 4px 12px -6px rgba(20,15,5,.45)}
+.diana-surface--compact::after{border-radius:calc(var(--diana-radius-xs) - 1px)}
+.diana-surface--compact::before{animation:none;transform:translate(-50%,-50%) rotate(35deg);opacity:.5}
+.diana-surface--compact:hover::before{opacity:.8}
+/* inside: matte, stable controls */
+.diana-surface ::placeholder{color:var(--diana-faint)}
+.diana-surface .btn,.diana-surface .in,.diana-surface select{background:var(--diana-ctl);border-color:var(--diana-border);color:var(--diana-text)}
+.diana-surface .btn:hover{background:var(--diana-ctl-hover);border-color:rgba(255,255,255,.16)}
+.diana-surface .btn.ghost{background:transparent;border-color:transparent;color:var(--diana-muted)}
+.diana-surface .btn.ghost:hover{color:var(--diana-text);background:var(--diana-ctl)}
+.diana-surface .btn.pri{background:var(--diana-text);border-color:var(--diana-text);color:#111}
+.diana-surface .btn.pri:hover{background:#fff}
+.diana-surface .btn:disabled{opacity:.45}
+.diana-surface .muted,.diana-surface .small.muted{color:var(--diana-muted)}
+.diana-surface input[type=checkbox]{accent-color:var(--diana-text)}
+.diana-label{font:500 10.5px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--diana-faint)}
+.diana-mark{width:15px;height:15px;flex:none}
+/* composer */
+.diana-composer{margin:14px 0 0}
+.dc-ctx{display:flex;align-items:center;gap:10px;padding:12px 16px 0}
+.dc-ctx b{font-weight:500;font-size:13.5px;color:var(--diana-text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc-ctx .x{margin-left:auto;background:none;border:0;color:var(--diana-faint);font-size:16px;line-height:1;padding:2px 6px;border-radius:6px;cursor:pointer}
+.dc-ctx .x:hover{color:var(--diana-text);background:var(--diana-ctl)}
+.dc-row{display:flex;align-items:center;gap:12px;padding:14px 12px 10px 18px}
+.dc-row .diana-mark{color:var(--diana-muted)}
+.dc-row input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--diana-text);font:400 16px var(--f-body)}
+.dc-row kbd{font:500 11px var(--f-mono);color:var(--diana-faint);border:1px solid var(--diana-border);border-radius:6px;padding:2px 6px}
+.dc-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 12px 12px 14px}
+.dc-chip{border:1px solid var(--diana-border);background:transparent;color:var(--diana-muted);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer}
+.dc-chip:hover:not(:disabled){color:var(--diana-text);background:var(--diana-ctl)}
+.dc-chip:disabled{opacity:.45}
+.dc-tools select{border-radius:var(--diana-radius-xs);padding:4px 8px;font-size:12.5px;width:auto}
+.dc-state{display:flex;align-items:center;gap:8px;color:var(--diana-faint)}
+.dc-state i{width:6px;height:6px;border-radius:50%;background:var(--diana-faint)}
+.diana-surface--thinking .dc-state i{background:var(--diana-amber);box-shadow:0 0 8px color-mix(in srgb,var(--diana-amber) 70%,transparent)}
+.diana-surface--focused .dc-state i,.diana-surface:focus-within .dc-state i{background:var(--diana-cyan)}
+/* conversation: editorial, not messenger bubbles */
+.dlog{display:flex;flex-direction:column;gap:22px;padding:22px 24px 26px;min-height:240px}
+.diana-composer{position:sticky;bottom:14px;z-index:5}
+.dmsg{max-width:72ch}
+.dmsg .who{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.dmsg .who .diana-mark{width:13px;height:13px;color:var(--ink-2)}
+.dmsg .body{white-space:pre-wrap;line-height:1.62;font-size:15px;color:var(--ink)}
+.dmsg.user .body{color:var(--ink-2)}
+.dmsg .who .diana-label{color:var(--ink-3)}
+.dmsg .thinking{color:var(--ink-3);font-size:13.5px}
+/* proposal */
+.dprop{margin-top:12px;max-width:560px}
+.dprop-in{padding:16px 18px 14px;display:flex;flex-direction:column;gap:12px}
+.dprop-h{display:flex;align-items:center;gap:8px}.dprop-h .diana-mark{color:var(--diana-amber)}
+.dprop-h .n{margin-left:auto;font:500 11px var(--f-mono);color:var(--diana-faint)}
+.dprop-list{display:flex;flex-direction:column;gap:2px}
+.dprop-item{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:var(--diana-radius-xs);cursor:pointer;font-size:14px;line-height:1.45}
+.dprop-item:hover{background:rgba(255,255,255,.035)}
+.dprop-item.off span{color:var(--diana-faint);text-decoration:line-through}
+.dprop-item input{margin-top:3px}
+.dprop-foot{display:flex;align-items:center;gap:8px;padding-top:12px;border-top:1px solid var(--diana-border)}
+.dprop-foot .hint{font-size:12px;color:var(--diana-faint);margin-right:auto}
+.dprop-done{margin-top:8px;font-size:13px;color:var(--ink-3)}
+/* contextual Ask Diana */
+.diana-ask{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font:500 13px var(--f-body);border:0;cursor:pointer;color:var(--diana-text)}
+.diana-ask .diana-mark{width:13px;height:13px;color:var(--diana-muted)}
+@media (prefers-reduced-motion:reduce){
+  .diana-surface::before{animation:none;transform:translate(-50%,-50%) rotate(35deg)}
+  .diana-surface,.diana-surface::before{transition:none}
+}
+@media (max-width:860px){.dlog{padding:16px}.dc-row input{font-size:16px}.diana-composer{bottom:calc(74px + env(safe-area-inset-bottom,0px))}.dc-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dc-tools::-webkit-scrollbar{display:none}.dc-chip,.dc-tools label,.dc-state{flex:none}}
 </style>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -827,6 +926,7 @@ const { useState, useEffect, useMemo, useRef, useCallback, Fragment } = React;
 const html = htm.bind(React.createElement);
 
 const PATHS = {
+  diana: 'M12 4a8 8 0 1 0 0 16 8 8 0 1 0 0-16zM12 9.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 1 0 0-4.8z',
   today: 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 100 8 4 4 0 000-8z',
   cal: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
   tasks: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
@@ -1007,7 +1107,7 @@ function App() {
 
   const ctx = { state, plan, computed, now, A, commit, setDrawer, setView, alerts, runCommand, log, draft, setDraft, pendingMoves, applyPlan, setSearch, setToast };
   const openTasks = state.tasks.filter((t) => t.status !== 'done').length;
-  const NAV = [['today', 'Today', 'today'], ['calendar', 'Calendar', 'cal'], ['tasks', 'Tasks', 'tasks', openTasks], ['projects', 'Projects', 'proj', state.projects.filter((p) => p.status !== 'done').length], ['notes', 'Notes', 'notes', state.notes.length], ['assistant', 'Diana', 'spark']];
+  const NAV = [['today', 'Today', 'today'], ['calendar', 'Calendar', 'cal'], ['tasks', 'Tasks', 'tasks', openTasks], ['projects', 'Projects', 'proj', state.projects.filter((p) => p.status !== 'done').length], ['notes', 'Notes', 'notes', state.notes.length], ['assistant', 'Diana', 'diana']];
   return html`<div class="app">
     <nav class="rail" aria-label="Main">
       <div class="brand"><i>S</i>Steward</div>
@@ -1601,7 +1701,7 @@ function TaskDrawer(ctx) {
     <div class="dr-acts">
       ${t.status !== 'done' ? (t.timer ? html`<button class="btn sm pri" onClick=${() => A.pauseTimer(t.id)}>Pause work</button>` : html`<button class="btn sm pri" onClick=${() => A.startTimer(t.id)}><${Icon} n="play" />Start work</button>`) : null}
       ${t.status !== 'done' ? html`<button class="btn sm ghost" aria-expanded=${why} onClick=${() => setWhy(!why)}>${inf.unscheduled ? 'Why no room?' : 'Why here?'}</button>` : null}
-      ${typeof openDiana === 'function' ? html`<button class="btn sm ghost" onClick=${() => { openDiana(ctx.setView, { type: 'task', id: t.id, view: 'task' }, t.kind === 'decision' && t.status !== 'done' ? 'Help me decide: ' + t.title : null); onClose(); }}><${Icon} n="spark" />${t.kind === 'decision' && t.status !== 'done' ? 'Decide with Diana' : 'Ask Diana'}</button>` : null}
+      ${typeof openDiana === 'function' ? html`<button class="diana-ask diana-surface diana-surface--compact" onClick=${() => { openDiana(ctx.setView, { type: 'task', id: t.id, view: 'task' }, t.kind === 'decision' && t.status !== 'done' ? 'Help me decide: ' + t.title : null); onClose(); }}><${Icon} n="diana" cls="diana-mark" />${t.kind === 'decision' && t.status !== 'done' ? 'Decide with Diana' : 'Ask Diana'}</button>` : null}
       ${trackedMin(t, now) >= 1 ? html`<span class="muted small">Tracked ${fmtDur(Math.round(trackedMin(t, now)))} of ${fmtDur(t.duration || 30)}</span>` : null}
     </div>
     ${why && t.status !== 'done' ? html`<div class="why">
@@ -2010,11 +2110,11 @@ function ProjectDetail(ctx) {
         ${nextT ? html`${nextT.status !== 'doing' ? html`<button class="btn sm pri" onClick=${() => A.startNow(nextT.id)}><${Icon} n="play" />Start next task</button>` : html`<span class="pill">In progress</span>`}
           <button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: nextT.id })}>${nextT.title}<span class="muted"> · ${fmtDur(remainingMin(nextT))}${info(nextT).first ? ' · ' + relD(info(nextT).first, now) + ' ' + fmtT(info(nextT).first) : ''}</span></button>` : null}
         <span style=${{ flex: 1 }}></span>
-        ${typeof openDiana === 'function' ? html`<button class="btn sm" onClick=${() => openDiana(ctx.setView, { type: 'project', id: p.id, view: 'project' })}><${Icon} n="spark" />Ask Diana</button>` : null}
+        ${typeof openDiana === 'function' ? html`<button class="diana-ask diana-surface diana-surface--compact" onClick=${() => openDiana(ctx.setView, { type: 'project', id: p.id, view: 'project' })}><${Icon} n="diana" cls="diana-mark" />Ask Diana</button>` : null}
       </div>
       ${m.decision || m.waiting.length ? html`<div class="ph2-flags">
         ${m.decision ? html`<div class="ph2-flag"><span class="eyebrow k-dec">Next decision</span><button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: m.decision.id })}>${m.decision.title}</button>
-          ${typeof openDiana === 'function' ? html`<button class="btn sm ghost" onClick=${() => openDiana(ctx.setView, { type: 'task', id: m.decision.id, view: 'project' }, 'Help me decide: ' + m.decision.title)}><${Icon} n="spark" />Decide with Diana</button>` : null}</div>` : null}
+          ${typeof openDiana === 'function' ? html`<button class="diana-ask diana-surface diana-surface--compact" onClick=${() => openDiana(ctx.setView, { type: 'task', id: m.decision.id, view: 'project' }, 'Help me decide: ' + m.decision.title)}><${Icon} n="diana" cls="diana-mark" />Decide with Diana</button>` : null}</div>` : null}
         ${m.waiting.map((w) => html`<div key=${w.id} class="ph2-flag"><span class="eyebrow k-wait">Waiting on</span><button class="tt ph2-next" onClick=${() => setDrawer({ type: 'task', id: w.id })}>${w.waitingOn || 'someone'}<span class="muted"> · ${w.title}</span></button>
           <button class="btn sm ghost" onClick=${() => A.updTask(w.id, { kind: null, waitingOn: null })}><${Icon} n="check" />Got a response</button></div>`)}
       </div>` : null}
