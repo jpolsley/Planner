@@ -556,6 +556,45 @@ select.ghostin{text-align-last:right}
   .diana-surface,.diana-surface::before,.diana-surface::after,.diana-sheen::before{transition:none}
 }
 @media (max-width:860px){.dlog{padding:16px}.dc-row input{font-size:16px}.diana-composer{bottom:calc(74px + env(safe-area-inset-bottom,0px))}.dc-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dc-tools::-webkit-scrollbar{display:none}.dc-chip,.dc-tools label,.dc-state{flex:none}}
+
+/* ===== Diana workspace: header · conversation (scrolls) · composer (fixed at the bottom) ===== */
+.main.is-diana{display:flex;flex-direction:column;overflow:hidden}
+.main.is-diana > .wrap{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;padding-bottom:0}
+.dws{--dws-w:860px;flex:1;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;margin:-6px -12px 0;border-radius:26px 26px 0 0;
+  background:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,.18) 30%,rgba(255,255,255,0) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),inset 1px 0 0 rgba(255,255,255,.35),inset -1px 0 0 rgba(255,255,255,.35),0 -1px 0 rgba(30,25,15,.04)}
+.dws-col{width:100%;max-width:var(--dws-w);margin:0 auto;padding:0 20px}
+.dws-head{display:flex;align-items:center;gap:14px;padding:16px 24px 12px}
+.dws-title{display:flex;align-items:center;gap:9px}.dws-title h1{margin:0;font:700 22px/1.1 var(--f-display);letter-spacing:-.01em}
+.dws-title .diana-mark{width:18px;height:18px;color:var(--ink-2)}
+.dws-status{display:inline-flex;align-items:center;gap:7px;font:500 11.5px var(--f-mono);color:var(--ink-3);padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.5);box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}
+.dws-status i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}.dws-status i.on{background:var(--good)}.dws-status i.busy{background:var(--warn)}
+.dws-menu{position:relative}
+.dws-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:180px;padding:6px;border-radius:12px;background:var(--surface);box-shadow:0 1px 0 #fff inset,0 12px 30px -10px rgba(30,25,15,.3),0 0 0 1px rgba(0,0,0,.06);display:flex;flex-direction:column}
+.dws-pop button{background:none;border:0;text-align:left;padding:9px 10px;border-radius:8px;font:inherit;font-size:13.5px;color:var(--ink);cursor:pointer}
+.dws-pop button:hover:not(:disabled){background:var(--sunk)}.dws-pop button:disabled{color:var(--ink-3)}
+.dws-scroll{overflow-y:auto;overscroll-behavior:contain;min-height:0;padding:8px 0 24px;scrollbar-gutter:stable;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(180deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent)}
+.dws-scroll .dws-col{display:flex;flex-direction:column;gap:26px}
+.dws-scroll .dmsg{max-width:none}
+.dws-scroll .dmsg .body{font-size:15.5px;line-height:1.65}
+.dws-empty{padding:12vh 0 0;color:var(--ink-2);font-size:16px;line-height:1.6;max-width:560px}
+.dws-foot{position:relative;padding:6px 0 20px}
+.dws-prompts{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.dws-prompt{border:0;background:rgba(255,255,255,.6);color:var(--ink-2);font:inherit;font-size:13.5px;padding:8px 13px;border-radius:12px;cursor:pointer;box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(0,0,0,.06),0 4px 10px -8px rgba(30,25,15,.3)}
+.dws-prompt:hover:not(:disabled){color:var(--ink);background:rgba(255,255,255,.85)}
+.dws-jump{position:absolute;left:50%;top:-34px;transform:translateX(-50%);z-index:3;border:0;border-radius:999px;padding:7px 14px;font:500 12.5px var(--f-body);color:var(--diana-text);cursor:pointer;
+  background:rgba(22,22,24,.86);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 8px 18px -10px rgba(0,0,0,.6)}
+.dws .diana-composer{position:relative;bottom:auto;margin:0}
+.dc-icon{width:36px;padding:0!important;justify-content:center;font-size:20px;font-weight:300}
+.dc-ctxchip{display:inline-flex;align-items:center;gap:7px;cursor:default;max-width:300px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dc-ctxchip .diana-mark{width:13px;height:13px;color:var(--diana-teal)}
+.dc-ctxchip button{background:none;border:0;color:var(--diana-faint);font-size:15px;padding:0 0 0 4px;cursor:pointer}.dc-ctxchip button:hover{color:var(--diana-text)}
+.dc-select{display:inline-flex;align-items:center;gap:6px;color:var(--diana-muted)!important}
+.dc-select select{background:transparent!important;border:0!important;color:var(--diana-text)!important;font:inherit;padding:0 2px;cursor:pointer;outline:none}
+.diana-bar .dc-chip{display:inline-flex;align-items:center}
+.set-h{font:700 20px var(--f-display);margin:0 0 12px}
+@media (max-width:860px){.dws{margin:-6px -8px 0;border-radius:20px 20px 0 0}.dws-head{padding:12px 16px 8px}.dws-col{padding:0 12px}.dws-foot{padding-bottom:12px}.dws-empty{padding-top:6vh}}
 </style>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -996,7 +1035,7 @@ function sampleState(now) {
 }
 </script>
 <script>
-const { useState, useEffect, useMemo, useRef, useCallback, Fragment } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, Fragment } = React;
 const html = htm.bind(React.createElement);
 
 const PATHS = {
@@ -1190,7 +1229,7 @@ function App() {
       <div class="spacer"></div>
       <button class=${'nav' + (view === 'settings' ? ' on' : '')} onClick=${() => setView('settings')}><${Icon} n="gear" /><span class="lbl">Settings</span><span class="mlbl">Settings</span></button>
     </nav>
-    <main class="main"><${FocusBar} ...${ctx} /><div class="wrap">
+    <main class=${'main' + (view === 'assistant' ? ' is-diana' : '')}><${FocusBar} ...${ctx} /><div class="wrap">
       ${!saveOk ? html`<div class="banner warn"><b>Not saving.</b><span class="grow">This browser is blocking storage, so changes will be lost when you close the tab. Use Settings → Backup to copy your data out.</span></div>` : null}
       ${pendingMoves ? html`<div class="banner"><b>Proposed update</b><span class="grow">${pendingMoves} work block${pendingMoves > 1 ? 's' : ''} would move to keep the plan realistic.</span><button class="btn sm" onClick=${() => setView('calendar')}>Review</button><button class="btn sm pri" onClick=${applyPlan}>Apply plan</button></div>` : null}
       ${view === 'today' ? html`<${TodayView} ...${ctx} />` : null}
@@ -2507,7 +2546,7 @@ function CalendarsPanel({ state, A, calStatus, refreshCalendars, setToast }) {
     </div></div>`;
 }
 
-function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus, refreshCalendars, setView }) {
+function SettingsView({ state, plan, A, setState, commit, setToast, doSync, calStatus, refreshCalendars, setView }) {
   const s = state.settings;
   const [imp, setImp] = useState('');
   const [confirm, setConfirm] = useState(false);
@@ -2549,6 +2588,7 @@ function SettingsView({ state, A, setState, commit, setToast, doSync, calStatus,
       <textarea id="imp" class="in" value=${imp} onInput=${(e) => setImp(e.target.value)} placeholder="Paste a backup here to restore it"></textarea>
       <div><button class="btn sm" disabled=${!imp.trim()} onClick=${() => { try { const d = JSON.parse(imp); if (!d.tasks || !d.settings) throw 0; commit(d, 'Backup restored'); setImp(''); } catch (e) { setToast({ text: 'That isn’t a Steward backup — paste the whole copied text', id: uid() }); } }}>Restore backup</button></div>
     </div></div>
+    ${typeof DianaSettings === 'function' ? html`<${DianaSettings} state=${state} plan=${plan} commit=${commit} setToast=${setToast} />` : null}
   </div>`;
 }
 
