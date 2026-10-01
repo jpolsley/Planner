@@ -1,41 +1,87 @@
 <!doctype html>
-<html lang="en"><head>
+<html lang="en" class="boot"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Steward</title>
-<meta name="theme-color" content="#0f6e62">
+<meta name="theme-color" content="#e7e5e0">
 <style>
-:root{--ground:#f3f5f2;--surface:#fff;--line:#d8ded7;--ink:#18201d;--ink-3:#7c8783;--accent:#0f6e62;--accent-2:#0b5249;--on-accent:#fff;--bad:#b0392f;color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#121715;--surface:#1a211e;--line:#2a332f;--ink:#e6ece9;--ink-3:#78847f;--accent:#3fb8a5;--accent-2:#6fd1c1;--on-accent:#08201c;--bad:#ec7b70;color-scheme:dark}}
-:root[data-theme="dark"]{--ground:#121715;--surface:#1a211e;--line:#2a332f;--ink:#e6ece9;--ink-3:#78847f;--accent:#3fb8a5;--accent-2:#6fd1c1;--on-accent:#08201c;--bad:#ec7b70;color-scheme:dark}
+/* The entrance to Steward: same off-white palette as the app, no separate accent color. */
+:root{--ground:#e7e5e0;--surface:#f6f5f2;--line:#cbc8c1;--ink:#1c1d1f;--ink-2:#4a4c4f;--ink-3:#7c7e81;--action:#1f2022;--action-2:#000;--bad:#c4473d;
+  --amber:#ff9a3d;--cyan:#55d8d0;--ease:cubic-bezier(.2,.7,.2,1);color-scheme:light}
 *{box-sizing:border-box}
-body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:16px;background:var(--ground);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-form{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;margin-bottom:18px}
-.brand i{font-style:normal;display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:15px}
-label{display:block;font-size:13px;color:var(--ink-3);margin-bottom:6px}
-input[type=password]{width:100%;font:inherit;color:inherit;background:var(--ground);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
-input[type=password]:focus{outline:2px solid var(--accent);outline-offset:1px}
-.row{display:flex;align-items:center;gap:8px;margin:12px 0 18px;font-size:13px;color:var(--ink-3)}
-button{width:100%;font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px;background:var(--accent);color:var(--on-accent);cursor:pointer}
-button:hover{background:var(--accent-2)}button:disabled{opacity:.6;cursor:wait}
-.err{color:var(--bad);font-size:13px;min-height:20px;margin:10px 0 0}
+html,body{height:100%}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;color:var(--ink);font:15px/1.5 "Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:radial-gradient(90% 60% at 50% 0%,#efeee9,transparent 70%),var(--ground)}
+.stage{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mark{position:relative;width:64px;height:64px;display:grid;place-items:center}
+.mark .tile{width:46px;height:46px;border-radius:13px;background:linear-gradient(180deg,#2a2b2e,#141516);color:#f4f4f2;display:grid;place-items:center;font:700 21px/1 "Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 8px 20px -10px rgba(20,15,5,.45)}
+.mark svg{position:absolute;inset:0;width:64px;height:64px;overflow:visible}
+.mark .trace{fill:none;stroke:url(#g);stroke-width:1.2;stroke-linecap:round;stroke-dasharray:190;stroke-dashoffset:190;opacity:0}
+.word{margin-top:12px;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.32em;color:var(--ink-3);text-transform:uppercase;padding-left:.32em}
+h1{margin:26px 0 0;font:600 30px/1.15 "Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;letter-spacing:-.02em}
+form{width:100%;margin-top:28px;text-align:left}
+input[type=password]{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+  box-shadow:inset 0 1px 2px rgba(20,15,5,.06);transition:border-color .18s,box-shadow .18s}
+input[type=password]::placeholder{color:var(--ink-3)}
+input[type=password]:focus{outline:none;border-color:var(--ink-2);box-shadow:0 0 0 3px rgba(31,32,34,.12)}
+/* browser autofill would otherwise paint the field yellow/green */
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 60px var(--surface) inset;-webkit-text-fill-color:var(--ink);caret-color:var(--ink);transition:background-color 9999s}
+.row{display:flex;align-items:center;gap:9px;margin:14px 2px 20px;font-size:13.5px;color:var(--ink-2);cursor:pointer}
+.row input{accent-color:var(--action);width:16px;height:16px;margin:0}
+button{width:100%;font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px;background:var(--action);color:#f4f4f2;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 18px -10px rgba(20,15,5,.5);transition:background .18s,transform .18s}
+button:hover{background:var(--action-2)}button:active{transform:translateY(1px)}button:disabled{cursor:wait}
+button:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+.err{color:var(--bad);font-size:13px;min-height:20px;margin:10px 2px 0;text-align:center}
+::selection{background:rgba(31,32,34,.18);color:inherit}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* Opening, only when a password is needed: mark appears and is traced once, moves up, welcome, then the form. */
+html.boot .stage{visibility:hidden}
+@media (prefers-reduced-motion:no-preference){
+  .intro .mark{animation:m-in .5s var(--ease) both,m-up .45s var(--ease) .55s both}
+  .intro .mark .trace{animation:trace .9s var(--ease) .12s both}
+  .intro .word{animation:fade .4s var(--ease) .2s both}
+  .intro h1{animation:rise .45s var(--ease) .62s both}
+  .intro form{animation:rise .45s var(--ease) .8s both}
+  .leaving .stage{animation:leave .32s var(--ease) both}
+  .shake form{animation:shake .32s ease}
+}
+@keyframes m-in{from{opacity:0;transform:translateY(22px) scale(.92)}to{opacity:1;transform:translateY(22px)}}
+@keyframes m-up{from{transform:translateY(22px)}to{transform:none}}
+@keyframes trace{0%{opacity:0;stroke-dashoffset:190}15%{opacity:.9}75%{opacity:.7}100%{opacity:0;stroke-dashoffset:0}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes leave{to{opacity:0;transform:scale(.985);filter:blur(2px)}}
+@keyframes shake{25%{transform:translateX(-5px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
 </style>
 </head><body>
-<form id="f" autocomplete="on">
-  <div class="brand"><i>S</i>Steward</div>
-  <input type="text" name="username" value="steward" autocomplete="username" hidden>
-  <label for="pw">Password</label>
-  <input id="pw" type="password" autocomplete="current-password" required autofocus>
-  <label class="row"><input id="rem" type="checkbox" checked> Stay unlocked on this device</label>
-  <button id="go" type="submit">Unlock</button>
-  <p class="err" id="err" role="alert"></p>
-</form>
+<main class="stage">
+  <div class="mark" aria-hidden="true">
+    <svg viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f2022" stop-opacity=".25"/><stop offset=".55" stop-color="var(--amber)"/><stop offset="1" stop-color="var(--cyan)"/></linearGradient></defs>
+      <rect class="trace" x="3" y="3" width="58" height="58" rx="18"/></svg>
+    <div class="tile">S</div>
+  </div>
+  <div class="word">Steward</div>
+  <h1>Welcome back.</h1>
+  <form id="f" autocomplete="on">
+    <input type="text" name="username" value="steward" autocomplete="username" hidden>
+    <label class="sr" for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
+    <label class="row"><input id="rem" type="checkbox" checked> Stay unlocked on this device</label>
+    <button id="go" type="submit">Unlock</button>
+    <p class="err" id="err" role="alert"></p>
+  </form>
+</main>
 <script>
 (() => {
 'use strict';
 const P = __PAYLOAD__;
 const KEY = 'steward.unlock.v1';
+const root = document.documentElement;
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
 const bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 async function unlock(key) {
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(P.iv) }, key, bytes(P.data));
@@ -48,6 +94,8 @@ async function derive(pw) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: bytes(P.salt), iterations: P.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
 }
+// The opening plays only when a password is actually needed.
+function intro() { root.classList.remove('boot'); root.classList.add('intro'); setTimeout(() => document.getElementById('pw').focus({ preventScroll: true }), calm ? 0 : 900); }
 (async () => {
   // A remembered key only works for the same build; a new password (or rebuild) asks again.
   try {
@@ -57,22 +105,30 @@ async function derive(pw) {
       await show(await unlock(key)); return;
     }
   } catch (e) { try { localStorage.removeItem(KEY); } catch (_) {} }
+  intro();
 })();
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
   const go = document.getElementById('go'), err = document.getElementById('err');
   go.disabled = true; go.textContent = 'Unlocking…'; err.textContent = '';
+  let html;
   try {
     const key = await derive(document.getElementById('pw').value);
     let jwk = null;
     if (document.getElementById('rem').checked) jwk = await crypto.subtle.exportKey('jwk', key);
-    const html = await unlock(key);
+    html = await unlock(key);
     if (jwk) { try { localStorage.setItem(KEY, JSON.stringify({ salt: P.salt, jwk })); } catch (_) {} }
-    await show(html);
   } catch (x) {
-    err.textContent = 'Wrong password.'; go.disabled = false; go.textContent = 'Unlock';
+    err.textContent = 'That password didn’t work.'; go.disabled = false; go.textContent = 'Unlock';
+    root.classList.remove('shake'); void root.offsetWidth; root.classList.add('shake');
     document.getElementById('pw').select();
+    return;
   }
+  go.textContent = '✓ Ready';
+  await wait(220);
+  root.classList.add('leaving');
+  await wait(300);
+  await show(html);
 });
 })();
 </script>

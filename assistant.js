@@ -362,6 +362,7 @@ function ActionCard({ x, state, A, patch }) {
   };
   const skip = () => { if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, proposal: x.id, data: { decision: 'dismissed', proposed: x.actions.length } }); patch(x.id, () => ({ applied: 'Dismissed.' })); };
   return html`<div class="dprop diana-surface diana-surface--proposal" role="group" aria-label="Proposed changes">
+    <i class="diana-sheen" aria-hidden="true"></i>
     <div class="dprop-in">
       <div class="dprop-h"><${Icon} n="diana" cls="diana-mark" /><span class="diana-label" style=${{ color: 'var(--diana-muted)' }}>Proposed ${acts.length === 1 ? 'change' : 'plan'}</span><span class="n">${on.length} of ${acts.length} selected</span></div>
       <div class="dprop-list">${acts.map((r) => { const dis = r.text.startsWith('✕'); const isOn = !off[r.i] && !dis; return html`<label key=${r.i} class=${'dprop-item' + (isOn ? '' : ' off')}><input type="checkbox" disabled=${dis} checked=${isOn} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`; })}</div>
@@ -716,6 +717,7 @@ function AssistantView(ctx) {
         <div ref=${endRef}></div>
       </div>
       <div class=${'diana-surface diana-composer' + (thinking ? ' diana-surface--thinking' : '')}>
+        <i class="diana-sheen" aria-hidden="true"></i>
         ${ci ? html`<div class="dc-ctx" title="Diana gets the details of this with each message"><span class="diana-label">Looking at</span><b>${ci.label.replace(/^(Project|Task|Decision): /, '')}</b><button class="x" onClick=${clearCtx} aria-label="Stop talking about this">×</button></div>` : null}
         <form class="dc-row" onSubmit=${(e) => { e.preventDefault(); send(); }}>
           <${Icon} n="diana" cls="diana-mark" />
