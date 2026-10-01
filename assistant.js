@@ -15,6 +15,8 @@ const KIN_CLOUD_MODELS = [
   { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen2.5 7B' },
 ];
 const KIN_CLOUD_KEY = 'kin.planner.cloud.v1';
+/* "qwen3:8b" → "Qwen3 8B", "Qwen/Qwen2.5-72B-Instruct" → "Qwen2.5 72B": the name shown is the model the server really runs. */
+const kinModelName = (id) => { const k = KIN_CLOUD_MODELS.find((x) => x.id === id); if (k) return k.name; const t = String(id || '').split('/').pop().replace(/-instruct$/i, ''); const m = t.match(/^([a-z][\w.]*?)[:\-](\d+(?:\.\d+)?b)\b/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' ' + m[2].toUpperCase() : t; };
 const KIN_SPACE_KEY = 'steward.space.v1';
 try { localStorage.removeItem('steward.hf.token'); } catch (e) {} // tokens now live only in the Space
 const kinSpace = () => kinLoad(KIN_SPACE_KEY, null);
@@ -117,7 +119,16 @@ const kinAI = {
   cloudOff: false, abort: null,
   useCloud() {
     const i = Math.min(kinLoad(KIN_CLOUD_KEY, 0), KIN_CLOUD_MODELS.length - 1);
-    this.set({ status: 'ready', device: 'cloud', model: { key: 'cloud', name: KIN_CLOUD_MODELS[i].name, cloud: i }, progress: '', error: '', note: '' });
+    const sp = kinSpace();
+    const known = sp && sp.model ? kinModelName(sp.model) : null;
+    this.set({ status: 'ready', device: 'cloud', model: { key: 'cloud', name: known || 'Your Steward server', cloud: i }, progress: '', error: '', note: '' });
+    // Ask the server which model it actually runs (the first one in its MODEL list).
+    if (sp && sp.url) fetch(sp.url + '/health', { cache: 'no-store' }).then((r) => r.json()).then((h) => {
+      const id = Array.isArray(h.models) ? h.models[0] : h.model;
+      if (!id) return;
+      try { kinSave(KIN_SPACE_KEY, { ...kinSpace(), model: id }); } catch (e) {}
+      if (this.device === 'cloud') this.set({ model: { ...(this.model || {}), key: 'cloud', name: kinModelName(id) } });
+    }).catch(() => {});
   },
   async load(key) {
     if (!key && !kinLoad(KIN_PREF_KEY, {}).onDevice) { if (kinCloudAvailable()) this.useCloud(); return; }
@@ -213,7 +224,7 @@ async function kinCloudChat({ messages, maxTokens, temperature, onChunk, docs = 
       : 'error ' + res.status + (detail ? ': ' + detail.slice(0, 120) : ''));
   }
   const used = res.headers.get('X-Steward-Model');
-  if (used) { const i = KIN_CLOUD_MODELS.findIndex((x) => x.id === used); const name = i >= 0 ? KIN_CLOUD_MODELS[i].name : used.split('/').pop(); if (!kinAI.model || kinAI.model.name !== name) kinAI.set({ model: { key: 'cloud', name } }); }
+  if (used) { const name = kinModelName(used); if (!kinAI.model || kinAI.model.name !== name) kinAI.set({ model: { key: 'cloud', name } }); }
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = '', text = '';
   try {
@@ -680,7 +691,7 @@ function AssistantView(ctx) {
         <p class="small muted" style=${{ padding: '0 16px 12px' }}>Private mode runs a small AI on this device. Nothing is sent anywhere, but it's slower and less capable. The first load downloads the model once.</p>`
       : kinCloudAvailable() ? html`
         <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <b>${m && m.key === 'cloud' ? m.name : KIN_CLOUD_MODELS[0].name}</b>
+          <b>${m && m.key === 'cloud' ? m.name : 'Your Steward server'}</b>
           <span class="muted small">Ready · via your Steward server${sp.docs ? ' · ' + sp.docs + ' document' + (sp.docs === 1 ? '' : 's') : ''}</span>
           <span style=${{ flex: '1' }}></span>
           ${sp.id ? html`<a class="btn sm ghost" href=${'https://huggingface.co/spaces/' + sp.id + '/upload/main/docs'} target="_blank" rel="noopener">Add documents</a>` : null}
