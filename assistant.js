@@ -538,7 +538,9 @@ function dianaContextInfo(c, state, plan) {
 function AssistantView(ctx) {
   const { state, plan, runCommand, setToast, A, commit } = ctx;
   const [, force] = useState(0);
-  const [tab, setTab] = useState('chat');
+  const [menu, setMenu] = useState(false);
+  const [jump, setJump] = useState(false);
+  const fileRef = useRef();
   const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: true, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
   const [msgs, setMsgs] = useState(() => kinLoad(KIN_CHAT_KEY, []));
   const [input, setInput] = useState('');
@@ -547,7 +549,12 @@ function AssistantView(ctx) {
   const [actx, setActx] = useState(() => { const c = kinLoad(DIANA_CTX_KEY, null); return c && Date.now() - (c.at || 0) < 12 * 3600000 ? c : null; });
   const clearCtx = () => { setActx(null); try { localStorage.removeItem(DIANA_CTX_KEY); } catch (e) {} };
   const ci = dianaContextInfo(actx, state, plan);
-  const endRef = useRef();
+  /* The conversation scrolls; the bar never moves. Follow new text while the user is near the bottom; if they've
+   * scrolled up to reread, leave them there and offer a "Latest" button instead. */
+  const scrollRef = useRef();
+  const stick = useRef(true);
+  const toBottom = (smooth) => { const el = scrollRef.current; if (!el) return; stick.current = true; setJump(false); el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); };
+  const onScroll = () => { const el = scrollRef.current; if (!el) return; const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80; stick.current = near; if (near && jump) setJump(false); };
 
   useEffect(() => { const f = () => force((n) => n + 1); kinAI.subs.add(f); kinMem.subs.add(f); return () => { kinAI.subs.delete(f); kinMem.subs.delete(f); }; }, []);
   useEffect(() => { kinSave(KIN_CHAT_KEY, msgs.filter((m) => !m.pending).slice(-60)); }, [msgs]);
@@ -568,7 +575,8 @@ function AssistantView(ctx) {
   };
   useEffect(() => { const t = setTimeout(remember, 3 * 60000); return () => clearTimeout(t); }, [msgs]);
   useEffect(() => () => { remember(); }, []);
-  useEffect(() => { endRef.current && endRef.current.scrollIntoView({ block: 'end' }); }, [msgs, tab]);
+  useLayoutEffect(() => { if (stick.current) { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; } else if (msgs.length) setJump(true); }, [msgs, pendingText]);
+  useEffect(() => { toBottom(false); }, []);
   const setPrefs = (p) => setPrefsRaw((x) => { const n = { ...x, ...p }; kinSave(KIN_PREF_KEY, n); return n; });
 
   const ready = kinAI.status === 'ready', busy = kinAI.generating;
@@ -591,6 +599,7 @@ function AssistantView(ctx) {
     const refs = { ...snapshotRefs(state, Date.now()).map };
     const run = 'run-' + uid().slice(0, 10);
     const prior = msgs;
+    stick.current = true; setJump(false);
     setMsgs((m) => [...m, { id: uid(), role: 'user', content: text, at: Date.now() }, { id, role: 'assistant', content: '', pending: true, refs, run }]);
     setInput('');
     let reply = '';
@@ -630,11 +639,87 @@ function AssistantView(ctx) {
       try { const learned = await kinLearnFrom(text, reply); if (learned.length) patch(id, () => ({ learned: learned.map((m) => m.text) })); } catch (e) {}
     }
   };
+  const addDoc = async (f) => {
+    const sp = kinSpace();
+    if (!f) return;
+    if (!sp || !sp.url || !sp.key || sp.id) { setToast({ text: 'Connect your Steward server in Settings to add documents', id: uid() }); return; }
+    try {
+      const r = await fetch(sp.url + '/v1/docs', { method: 'POST', headers: { Authorization: 'Bearer ' + sp.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name, data: await docReadB64(f) }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(r.status === 404 ? 'your Steward server needs updating' : j.error || 'server error ' + r.status);
+      setToast({ text: j.name + ' added. Diana can use it now.', id: uid() });
+    } catch (e) { setToast({ text: f.name + ': ' + (e.message === 'Failed to fetch' ? 'couldn’t reach your Steward server' : e.message), id: uid() }); }
+  };
   const addLine = (key, line) => { runCommand(line); setAdded((a) => ({ ...a, [key]: true })); setToast({ text: 'Added to your planner', id: uid() }); };
   const quick = ['What should I focus on today?', 'Break my biggest task into smaller steps', 'What have you learned about me?'];
   useEffect(() => { if (actx && actx.question) { const q = actx.question; const c = { ...actx, question: null }; setActx(c); kinSave(DIANA_CTX_KEY, c); send(q); } }, []);
   useEffect(() => { if (ready && pendingText && !busy) { const t = pendingText; setPending(null); send(t); } }, [ready, pendingText]);
   useEffect(() => { if (kinAI.status === 'error' && pendingText) { setInput(pendingText); setPending(null); } }, [kinAI.status]);
+  const pats = learnedPatterns(state);
+  const m = kinAI.model;
+  return html`<div class="dws">
+    <header class="dws-head">
+      <div class="dws-title"><${Icon} n="diana" cls="diana-mark" /><h1>Diana</h1></div>
+      <span class="dws-status" title=${ready ? (m ? m.name : '') : ''}><i class=${ready ? 'on' : kinAI.status === 'loading' ? 'busy' : ''}></i>${ready ? (kinAI.device === 'cloud' ? 'Local' : 'On this device') + (m && m.name ? ' · ' + m.name : '') : kinAI.status === 'loading' ? 'Loading…' : 'Not connected'}</span>
+      <span style=${{ flex: 1 }}></span>
+      <div class="dws-menu">
+        <button class="btn sm ghost" aria-haspopup="menu" aria-expanded=${menu} onClick=${() => setMenu(!menu)} aria-label="More">···</button>
+        ${menu ? html`<div class="dws-pop" role="menu" onMouseLeave=${() => setMenu(false)}>
+          <button role="menuitem" disabled=${busy || !msgs.length} onClick=${async () => { setMenu(false); await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>
+          <button role="menuitem" onClick=${() => { setMenu(false); ctx.setView('settings'); setTimeout(() => { const el = document.getElementById('diana-settings'); el && el.scrollIntoView({ block: 'start' }); }, 60); }}>Diana settings</button>
+        </div>` : null}
+      </div>
+    </header>
+    <div class="dws-scroll" ref=${scrollRef} onScroll=${onScroll} aria-live="polite">
+      <div class="dws-col">
+        ${!msgs.length && !pendingText ? html`<div class="dws-empty">
+          <p>${ci ? 'Ask Diana about ' + ci.label.replace(/^(Project|Task|Decision): /, '') + '.' : 'Ask Diana about your plans, or tell her about yourself: your work, routines and goals. She remembers what matters.'}</p>
+          ${!ready && !kinCloudAvailable() ? html`<p class="small muted">Diana isn’t connected yet. <button class="btn sm ghost" onClick=${() => ctx.setView('settings')}>Connect in Settings</button></p>` : null}
+        </div>` : null}
+        ${msgs.map((x) => html`<div key=${x.id} class=${'dmsg ' + (x.role === 'user' ? 'user' : 'diana')}>
+          <div class="who">${x.role === 'user' ? html`<span class="diana-label">You</span>` : html`<${Icon} n="diana" cls="diana-mark" /><span class="diana-label">Diana</span>`}</div>
+          <div class="body">${x.role === 'assistant' ? (() => { const r = chatActions(x.content); const t = kinPlain(r.clean); return t ? t + (x.pending && r.partial ? '\n\nPreparing changes…' : '') : x.pending ? html`<span class="thinking">Thinking…</span>` : ''; })() : x.content}</div>
+          ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
+          ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
+          ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
+          ${x.note ? html`<div class="small" style=${{ marginTop: '6px', color: 'var(--warn)' }}>${x.note}</div>` : null}
+          ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => { ctx.setView('settings'); setTimeout(() => { const el = document.getElementById('diana-settings'); el && el.scrollIntoView({ block: 'start' }); }, 60); }}>Review</button></div>` : null}
+        </div>`)}
+        ${pendingText ? html`<div class="dmsg user"><div class="who"><span class="diana-label">You</span></div><div class="body">${pendingText}</div><div class="small muted" style=${{ marginTop: '4px' }}>Diana is loading and will reply when she’s ready…</div></div>` : null}
+        ${pendingText ? html`<div class="dmsg user"><div class="who"><span class="diana-label">You</span></div><div class="body">${pendingText}</div><div class="small muted" style=${{ marginTop: '4px' }}>Diana is loading and will reply when she’s ready…</div></div>` : null}
+      </div>
+    </div>
+    <div class="dws-foot">
+      <div class="dws-col">
+        ${jump ? html`<button class="dws-jump" onClick=${() => toBottom(true)}>↓ ${thinking ? 'Jump to response' : 'Latest'}</button>` : null}
+        ${!msgs.length ? html`<div class="dws-prompts">${(ci ? ci.chips : quick).map((q) => html`<button key=${q} class="dws-prompt" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}</div>` : null}
+        <div class=${'diana-bar diana-composer' + (thinking ? ' is-thinking' : '')}><div class="diana-bar-glass">
+        <form class="dc-row" onSubmit=${(e) => { e.preventDefault(); send(); }}>
+          <${Icon} n="diana" cls="diana-mark" />
+          <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? (ci ? 'Ask Diana about this…' : 'Ask Diana anything, or tell her about yourself…') : 'Type a message — Diana will answer as soon as she’s loaded'} aria-label="Message Diana" autocomplete="off" />
+          ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : input.trim() ? html`<button class="btn pri sm" type="submit">Send</button>` : html`<kbd aria-hidden="true">↵</kbd>`}
+        </form>
+          <div class="dc-tools">
+            <button class="dc-chip dc-icon" type="button" title="Add a document for Diana" aria-label="Add a document" onClick=${() => fileRef.current && fileRef.current.click()}>+</button>
+            <input ref=${fileRef} type="file" accept=".md,.txt,.pdf" hidden onChange=${(e) => { addDoc(e.target.files[0]); e.target.value = ''; }} />
+            ${ci ? html`<span class="dc-chip dc-ctxchip" title="Diana gets the details of this with each message"><${Icon} n="diana" cls="diana-mark" />${ci.label.replace(/^(Project|Task|Decision): /, '')}<button type="button" onClick=${clearCtx} aria-label="Stop talking about this">×</button></span>` : null}
+            <label class="dc-chip dc-select" title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes:<select value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Diana may change">${Object.entries({ ask: 'Ask', auto: 'Auto (small)', plan: 'Plan only' }).map(([k, v]) => html`<option key=${k} value=${k}>${v}</option>`)}</select></label>
+            <span style=${{ flex: 1 }}></span>
+            <span class="dc-state"><i></i>${thinking ? 'Thinking…' : ready ? 'Ready' : kinAI.status === 'loading' ? 'Loading…' : 'Not connected'}</span>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Settings → Diana: connection, model, private mode, documents, memory, learning and the replay test. */
+function DianaSettings({ state, plan, commit, setToast }) {
+  const [, force] = useState(0);
+  const [prefs, setPrefsRaw] = useState(() => ({ autoLoad: true, learn: true, ...kinLoad(KIN_PREF_KEY, {}) }));
+  const setPrefs = (p) => setPrefsRaw((x) => { const n = { ...x, ...p }; kinSave(KIN_PREF_KEY, n); return n; });
+  useEffect(() => { const f = () => force((n) => n + 1); kinAI.subs.add(f); kinMem.subs.add(f); return () => { kinAI.subs.delete(f); kinMem.subs.delete(f); }; }, []);
+  const ready = kinAI.status === 'ready', busy = kinAI.generating;
   const pats = learnedPatterns(state);
   const m = kinAI.model;
   const restart = () => { kinAI.cloudOff = false; kinAI.unload(); setTimeout(() => kinAI.load(), 0); };
@@ -668,13 +753,8 @@ function AssistantView(ctx) {
   // Spaces connected before the id was saved: "user-name.hf.space" → "user/name" (usernames rarely contain hyphens).
   if (sp && !sp.id) { const h = sp.url.replace(/^https:\/\//, '').replace(/\.hf\.space$/, ''); const i = h.indexOf('-'); if (i > 0) sp.id = h.slice(0, i) + '/' + h.slice(i + 1); }
 
-  return html`<div>
-    <header class="hdr"><div><div class="sub">Digital Intelligence for Adaptive Navigation & Assistance</div><h1>Diana</h1></div><span class="grow"></span>
-      <div class="seg" style=${{ display: 'flex', gap: '6px' }}>
-        <button class=${'btn sm' + (tab === 'chat' ? ' pri' : ' ghost')} onClick=${() => setTab('chat')}>Chat</button>
-        <button class=${'btn sm' + (tab === 'memory' ? ' pri' : ' ghost')} onClick=${() => setTab('memory')}>What I know (${kinMem.items.length})</button>
-        <button class=${'btn sm' + (tab === 'test' ? ' pri' : ' ghost')} onClick=${() => setTab('test')}>Test</button>
-      </div></header>
+  return html`<div id="diana-settings" style=${{ marginTop: '28px' }}>
+    <h2 class="set-h">Diana</h2>
     <section class="panel" style=${{ marginBottom: '16px' }}>
       ${prefs.onDevice ? html`
         <div style=${{ padding: '12px 16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -712,37 +792,12 @@ function AssistantView(ctx) {
         <div style=${{ padding: '0 16px 12px' }}><label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label></div>`}
     </section>
 
-    ${tab === 'chat' ? html`<section>
-      <div class="panel dlog" aria-live="polite">
-        ${!msgs.length ? html`<p class="muted" style=${{ margin: 0 }}>Talk to Diana about your plans, and about yourself: your work, routines, and goals. She remembers what matters and uses it next time. Say “remember that…” to teach her something directly.</p>` : null}
-        ${msgs.map((x) => html`<div key=${x.id} class=${'dmsg ' + (x.role === 'user' ? 'user' : 'diana')}>
-          <div class="who">${x.role === 'user' ? html`<span class="diana-label">You</span>` : html`<${Icon} n="diana" cls="diana-mark" /><span class="diana-label">Diana</span>`}</div>
-          <div class="body">${x.role === 'assistant' ? (() => { const r = chatActions(x.content); const t = kinPlain(r.clean); return t ? t + (x.pending && r.partial ? '\n\nPreparing changes…' : '') : x.pending ? html`<span class="thinking">Thinking…</span>` : ''; })() : x.content}</div>
-          ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
-          ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
-          ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
-          ${x.note ? html`<div class="small" style=${{ marginTop: '6px', color: 'var(--warn)' }}>${x.note}</div>` : null}
-          ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
-        </div>`)}
-        ${pendingText ? html`<div class="dmsg user"><div class="who"><span class="diana-label">You</span></div><div class="body">${pendingText}</div><div class="small muted" style=${{ marginTop: '4px' }}>Diana is loading and will reply when she’s ready…</div></div>` : null}
-        <div ref=${endRef}></div>
-      </div>
-      <div class=${'diana-bar diana-composer' + (thinking ? ' is-thinking' : '')}><div class="diana-bar-glass">
-        ${ci ? html`<div class="dc-ctx" title="Diana gets the details of this with each message"><span class="diana-label">Looking at</span><b>${ci.label.replace(/^(Project|Task|Decision): /, '')}</b><button class="x" onClick=${clearCtx} aria-label="Stop talking about this">×</button></div>` : null}
-        <form class="dc-row" onSubmit=${(e) => { e.preventDefault(); send(); }}>
-          <${Icon} n="diana" cls="diana-mark" />
-          <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? (ci ? 'Ask Diana about this…' : 'Ask Diana anything, or tell her about yourself…') : 'Type a message — Diana will answer as soon as she’s loaded'} aria-label="Message Diana" autocomplete="off" />
-          ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : input.trim() ? html`<button class="btn pri sm" type="submit">Send</button>` : html`<kbd aria-hidden="true">↵</kbd>`}
-        </form>
-        <div class="dc-tools">
-          <span class="dc-state diana-label"><i></i>${thinking ? 'Thinking…' : ready ? 'Ready' : kinAI.status === 'loading' ? 'Loading…' : 'Not connected'}</span>
-          ${(ci ? ci.chips : quick).map((q) => html`<button key=${q} class="dc-chip" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
-          <span style=${{ flex: 1 }}></span>
-          <label class="diana-label" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Diana may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
-          ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}
-        </div>
-      </div></div>
-    </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${DocsPanel} setToast=${setToast} /><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
+    <${DocsPanel} setToast=${setToast} />
+    <${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} />
+    <${LearningPanels} state=${state} commit=${commit} setToast=${setToast} />
+    <details class="panel" style=${{ marginTop: '16px' }}><summary style=${{ padding: '12px 16px', cursor: 'pointer' }}>Test Diana (compare versions)</summary>
+      <${ReplayTest} state=${state} plan=${plan} chat=${kinLoad(KIN_CHAT_KEY, [])} setToast=${setToast} />
+    </details>
   </div>`;
 }
 
@@ -795,7 +850,7 @@ function DocsPanel({ setToast, p, A, compact }) {
   if (!own) {
     if (p) return null;
     return html`<section class="panel" style=${{ marginBottom: '16px' }}><div class="ph"><h2>Documents</h2></div>
-      <p class="muted small" style=${{ padding: '0 16px 16px', margin: 0 }}>Connect your Steward server on the Chat tab to add documents here. Diana reads them in her answers.</p></section>`;
+      <p class="muted small" style=${{ padding: '0 16px 16px', margin: 0 }}>Connect your Steward server above to add documents here. Diana reads them in her answers.</p></section>`;
   }
   const list = (docs || []).filter((d) => !p || (p.docs || []).includes(d.name));
   const input = html`<input ref=${fileRef} type="file" multiple accept=".md,.txt,.pdf,text/markdown,text/plain,application/pdf" hidden onChange=${(e) => { upload([...e.target.files]); e.target.value = ''; }} />`;
