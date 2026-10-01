@@ -352,7 +352,7 @@ function ActionCard({ x, state, A, patch }) {
   const acts = x.actions.map((a, i) => ({ a, i, text: describeAction(a, x.refs || {}, state) })).filter((r) => r.text);
   const [off, setOff] = useState({});
   if (!acts.length) return x.actions.length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Diana suggested changes, but they refer to tasks that no longer exist.</div>` : null;
-  if (x.applied) return html`<div class="small muted" style=${{ marginTop: '6px' }}>✓ ${x.applied}</div>`;
+  if (x.applied) return html`<div class="dprop-done">✓ ${x.applied}</div>`;
   const on = acts.filter((r) => !off[r.i] && !r.text.startsWith('✕'));
   const apply = () => {
     const list = on.map((r) => ({ ...r.a, task: r.a.task && x.refs[r.a.task], meeting: r.a.meeting && x.refs[r.a.meeting] }));
@@ -360,10 +360,13 @@ function ActionCard({ x, state, A, patch }) {
     if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, proposal: x.id, data: { decision: list.length === acts.length ? 'applied' : 'partly_applied', applied: list.length, proposed: x.actions.length, skipped: acts.filter((r) => !on.includes(r)).map((r) => r.a) } });
     patch(x.id, () => ({ applied: 'Applied ' + list.length + ' change' + (list.length === 1 ? '' : 's') + '. Press Undo to reverse.' }));
   };
-  return html`<div class="actcard">
-    <div class="small" style=${{ fontWeight: 600 }}>Diana wants to make ${acts.length} change${acts.length === 1 ? '' : 's'}</div>
-    ${acts.map((r) => html`<label key=${r.i} class="small" style=${{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}><input type="checkbox" disabled=${r.text.startsWith('✕')} checked=${!off[r.i] && !r.text.startsWith('✕')} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`)}
-    <div style=${{ display: 'flex', gap: '6px' }}><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>Apply ${on.length}</button><button class="btn sm ghost" onClick=${() => { if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, proposal: x.id, data: { decision: 'dismissed', proposed: x.actions.length } }); patch(x.id, () => ({ applied: 'Dismissed.' })); }}>Dismiss</button></div>
+  const skip = () => { if (typeof stewardEvents === 'object') stewardEvents.record('proposal_decision', { entity: 'diana', actor: 'user', corr: x.run, proposal: x.id, data: { decision: 'dismissed', proposed: x.actions.length } }); patch(x.id, () => ({ applied: 'Dismissed.' })); };
+  return html`<div class="dprop diana-surface diana-surface--proposal" role="group" aria-label="Proposed changes">
+    <div class="dprop-in">
+      <div class="dprop-h"><${Icon} n="diana" cls="diana-mark" /><span class="diana-label" style=${{ color: 'var(--diana-muted)' }}>Proposed ${acts.length === 1 ? 'change' : 'plan'}</span><span class="n">${on.length} of ${acts.length} selected</span></div>
+      <div class="dprop-list">${acts.map((r) => { const dis = r.text.startsWith('✕'); const isOn = !off[r.i] && !dis; return html`<label key=${r.i} class=${'dprop-item' + (isOn ? '' : ' off')}><input type="checkbox" disabled=${dis} checked=${isOn} onChange=${(e) => setOff({ ...off, [r.i]: !e.target.checked })} /><span>${r.text}</span></label>`; })}</div>
+      <div class="dprop-foot"><span class="hint">Untick anything you don’t want. You can undo after.</span><button class="btn sm ghost" onClick=${skip}>Dismiss</button><button class="btn sm pri" disabled=${!on.length} onClick=${apply}>${on.length === acts.length ? (acts.length === 1 ? 'Apply change' : 'Apply plan') : 'Apply ' + on.length}</button></div>
+    </div>
   </div>`;
 }
 
@@ -557,6 +560,7 @@ function AssistantView(ctx) {
   const setPrefs = (p) => setPrefsRaw((x) => { const n = { ...x, ...p }; kinSave(KIN_PREF_KEY, n); return n; });
 
   const ready = kinAI.status === 'ready', busy = kinAI.generating;
+  const thinking = busy || msgs.some((m) => m.pending) || !!pendingText;
   const patch = (id, fn) => setMsgs((m) => m.map((x) => (x.id === id ? { ...x, ...fn(x) } : x)));
   const send = async (text) => {
     text = (text || input).trim();
@@ -696,34 +700,36 @@ function AssistantView(ctx) {
         <div style=${{ padding: '0 16px 12px' }}><label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label></div>`}
     </section>
 
-    ${tab === 'chat' ? html`<section class="panel">
-      <div style=${{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '240px', maxHeight: '58vh', overflow: 'auto' }} aria-live="polite">
-        ${!msgs.length ? html`<p class="muted small">Talk to Diana about your plans, and about yourself: your work, routines, and goals. It remembers what matters and uses it next time. Say “remember that…” to teach it something directly.</p>` : null}
-        ${msgs.map((x) => html`<div key=${x.id} style=${{ alignSelf: x.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-          <div style=${{ whiteSpace: 'pre-wrap', lineHeight: '1.55', padding: '10px 13px', borderRadius: '12px', background: x.role === 'user' ? 'var(--accent-soft)' : 'var(--sunk)' }}>${x.role === 'assistant' ? (() => { const r = chatActions(x.content); return (kinPlain(r.clean) || (x.pending ? '…' : '')) + (x.pending && r.partial ? '\n\nPreparing changes…' : ''); })() : x.content || (x.pending ? '…' : '')}</div>
-          ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '4px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
+    ${tab === 'chat' ? html`<section>
+      <div class="panel dlog" aria-live="polite">
+        ${!msgs.length ? html`<p class="muted" style=${{ margin: 0 }}>Talk to Diana about your plans, and about yourself: your work, routines, and goals. She remembers what matters and uses it next time. Say “remember that…” to teach her something directly.</p>` : null}
+        ${msgs.map((x) => html`<div key=${x.id} class=${'dmsg ' + (x.role === 'user' ? 'user' : 'diana')}>
+          <div class="who">${x.role === 'user' ? html`<span class="diana-label">You</span>` : html`<${Icon} n="diana" cls="diana-mark" /><span class="diana-label">Diana</span>`}</div>
+          <div class="body">${x.role === 'assistant' ? (() => { const r = chatActions(x.content); const t = kinPlain(r.clean); return t ? t + (x.pending && r.partial ? '\n\nPreparing changes…' : '') : x.pending ? html`<span class="thinking">Thinking…</span>` : ''; })() : x.content}</div>
+          ${x.role === 'assistant' && (x.steps || []).length ? html`<div class="small muted" style=${{ marginTop: '6px' }}>${x.steps.map((t) => AGENT_TOOL_LABEL[t] || t).join(' · ')}${x.pending ? '…' : ''}</div>` : null}
           ${x.role === 'assistant' && !x.pending && (x.actions || []).length ? html`<${ActionCard} x=${x} state=${state} A=${A} patch=${patch} />` : null}
           ${x.role === 'assistant' && !x.pending ? chatTaskLines(x.content).map((line, i) => { const k = x.id + ':' + i; return html`<div key=${k} style=${{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}><button class="btn sm" disabled=${added[k]} onClick=${() => addLine(k, line)}>${added[k] ? 'Added' : '+ Add'}</button><span class="small">${line}</span></div>`; }) : null}
           ${x.note ? html`<div class="small" style=${{ marginTop: '6px', color: 'var(--warn)' }}>${x.note}</div>` : null}
-          ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>✦ Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
+          ${x.learned ? html`<div class="small muted" style=${{ marginTop: '6px' }}>Learned: ${x.learned.join(' · ')} <button class="btn sm ghost" onClick=${() => setTab('memory')}>Review</button></div>` : null}
         </div>`)}
-        ${pendingText ? html`<div style=${{ alignSelf: 'flex-end', maxWidth: '85%' }}><div style=${{ whiteSpace: 'pre-wrap', padding: '10px 13px', borderRadius: '12px', background: 'var(--accent-soft)' }}>${pendingText}</div><div class="small muted" style=${{ marginTop: '4px', textAlign: 'right' }}>Steward is loading, and will reply when it’s ready…</div></div>` : null}
+        ${pendingText ? html`<div class="dmsg user"><div class="who"><span class="diana-label">You</span></div><div class="body">${pendingText}</div><div class="small muted" style=${{ marginTop: '4px' }}>Diana is loading and will reply when she’s ready…</div></div>` : null}
         <div ref=${endRef}></div>
       </div>
-      ${ci ? html`<div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <span class="pill" title="Diana gets the details of this with each message">About ${ci.label}</span><button class="btn sm ghost" onClick=${clearCtx} aria-label="Stop talking about this">×</button>
-      </div>` : null}
-      <div style=${{ padding: '0 16px 8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        ${(ci ? ci.chips : quick).map((q) => html`<button key=${q} class="btn sm ghost" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
-        <span style=${{ flex: 1 }}></span>
-        <label class="small muted" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" style=${{ width: 'auto', padding: '4px 8px', fontSize: '12.5px' }} value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Steward may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
-        ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}
+      <div class=${'diana-surface diana-composer' + (thinking ? ' diana-surface--thinking' : '')}>
+        ${ci ? html`<div class="dc-ctx" title="Diana gets the details of this with each message"><span class="diana-label">Looking at</span><b>${ci.label.replace(/^(Project|Task|Decision): /, '')}</b><button class="x" onClick=${clearCtx} aria-label="Stop talking about this">×</button></div>` : null}
+        <form class="dc-row" onSubmit=${(e) => { e.preventDefault(); send(); }}>
+          <${Icon} n="diana" cls="diana-mark" />
+          <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? (ci ? 'Ask Diana about this…' : 'Ask Diana anything, or tell her about yourself…') : 'Type a message — Diana will answer as soon as she’s loaded'} aria-label="Message Diana" autocomplete="off" />
+          ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : input.trim() ? html`<button class="btn pri sm" type="submit">Send</button>` : html`<kbd aria-hidden="true">↵</kbd>`}
+        </form>
+        <div class="dc-tools">
+          <span class="dc-state diana-label"><i></i>${thinking ? 'Thinking…' : ready ? 'Ready' : kinAI.status === 'loading' ? 'Loading…' : 'Not connected'}</span>
+          ${(ci ? ci.chips : quick).map((q) => html`<button key=${q} class="dc-chip" disabled=${busy} onClick=${() => send(q)}>${q}</button>`)}
+          <span style=${{ flex: 1 }}></span>
+          <label class="diana-label" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }} title=${(AGENT_MODES[prefs.mode || 'ask'] || {}).hint}>Changes<select class="in" value=${prefs.mode || 'ask'} onChange=${(e) => setPrefs({ mode: e.target.value })} aria-label="What Diana may change">${Object.entries(AGENT_MODES).map(([k, v]) => html`<option key=${k} value=${k}>${v.label}</option>`)}</select></label>
+          ${msgs.length ? html`<button class="btn sm ghost" disabled=${busy} onClick=${async () => { await remember(); setMsgs([]); setAdded({}); try { localStorage.removeItem(KIN_COMPACT_KEY); } catch (e) {} }}>Clear chat</button>` : null}
+        </div>
       </div>
-      <form class="cmd" style=${{ margin: '0 16px 16px' }} onSubmit=${(e) => { e.preventDefault(); send(); }}>
-        <${Icon} n="spark" cls="muted" />
-        <input value=${input} onInput=${(e) => setInput(e.target.value)} placeholder=${ready ? 'Ask Diana, or tell her about yourself…' : 'Type a message — Steward will answer as soon as it’s loaded'} aria-label="Message Steward" autocomplete="off" />
-        ${busy ? html`<button class="btn sm" type="button" onClick=${() => kinAI.stop()}>Stop</button>` : html`<button class="btn pri sm" type="submit" disabled=${!input.trim()}>Send</button>`}
-      </form>
     </section>` : tab === 'test' ? html`<${ReplayTest} state=${state} plan=${plan} chat=${msgs} setToast=${setToast} />` : html`<div><${DocsPanel} setToast=${setToast} /><${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} /><${LearningPanels} state=${state} commit=${commit} setToast=${setToast} /></div>`}
   </div>`;
 }
