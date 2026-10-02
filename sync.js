@@ -155,7 +155,7 @@ async function fetchCalendar(cal, days = 28) {
     const id = cal.id + ':' + e.uid + ':' + start;
     if (e.allDay) {
       for (let d = sod(start); d < (end || start + 1); d = addDays(d, 1)) allday.push({ id: id + ':' + d, title: e.title, day: d, src: cal.id });
-    } else timed.push({ id, title: e.title, start, end: Math.max(end, start + 5 * 60000), kind: 'meeting', src: cal.id, location: e.location || '' });
+    } else timed.push({ id, title: e.title + (e.tentative ? ' (tentative)' : ''), start, end: Math.max(end, start + 5 * 60000), kind: 'meeting', src: cal.id, location: e.location || '' });
   }
-  return { name: data.name || '', timed, allday };
+  return { name: data.name || '', timed, allday, stale: !!data.stale };
 }

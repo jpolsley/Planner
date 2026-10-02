@@ -1099,7 +1099,7 @@ function App() {
       try {
         const r = await fetchCalendar(cal);
         setState((s) => ({ ...s, events: [...s.events.filter((e) => e.src !== cal.id), ...r.timed], allday: [...(s.allday || []).filter((e) => e.src !== cal.id), ...r.allday] }));
-        setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), count: r.timed.length + r.allday.length, name: r.name } }));
+        setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), count: r.timed.length + r.allday.length, name: r.name, stale: r.stale } }));
       } catch (e) { setCalStatus((c) => ({ ...c, [cal.id]: { at: Date.now(), error: e.message } })); }
     }
   }, []);
@@ -2538,9 +2538,13 @@ function CalendarsPanel({ state, A, calStatus, refreshCalendars, setToast }) {
     <div style=${{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
       ${cals.map((c) => { const st = calStatus[c.id] || {}; return html`<div key=${c.id} style=${{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <span class=${'dot ' + (st.error ? 'bad' : st.at ? 'ok' : '')}></span>
-        <div style=${{ flex: 1, minWidth: 0 }}><b>${st.name || c.name || 'Calendar'}</b><div class="muted" style=${{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>${st.error ? html`<span style=${{ color: 'var(--bad)' }}>${st.error}</span>` : st.at ? st.count + ' events in the next 4 weeks · updated ' + fmtT(st.at) : connected ? 'Reading…' : 'Connect your Space to read this calendar.'}</div></div>
+        <div style=${{ flex: 1, minWidth: 0 }}><b>${st.name || c.name || 'Calendar'}</b><div class="muted" style=${{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>${st.error ? html`<span style=${{ color: 'var(--bad)' }}>${st.error}</span>` : st.at ? st.count + (c.url === 'steward:work' ? ' events in the next 60 days' + (st.stale ? ' · showing the last good copy' : '') : ' events in the next 4 weeks') + ' · updated ' + fmtT(st.at) : connected ? 'Reading…' : 'Connect your Space to read this calendar.'}</div></div>
         <button class="btn sm ghost danger" onClick=${() => A.setSettings({ calendars: cals.filter((x) => x.id !== c.id) })}>Remove</button>
       </div>`; })}
+      ${connected && !cals.some((c) => c.url === 'steward:work') ? html`<div style=${{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', background: 'var(--sunk)' }}>
+        <div style=${{ flex: 1 }}><b>Work calendar</b><div class="muted" style=${{ fontSize: '12px' }}>Reads the work calendar feed set up on your Steward server (Power Automate). The secret link stays on the server.</div></div>
+        <button class="btn sm" onClick=${() => { A.setSettings({ calendars: [...cals, { id: 'work', url: 'steward:work', name: 'Work calendar' }] }); setToast({ text: 'Work calendar added. Reading it now…', id: uid() }); }}>Add</button>
+      </div>` : null}
       <form onSubmit=${add} style=${{ display: 'flex', gap: '8px' }}><input class="in" style=${{ flex: 1 }} value=${url} onInput=${(e) => setUrl(e.target.value)} placeholder="Paste a calendar’s secret address (.ics)" aria-label="Calendar link" /><button class="btn sm pri" disabled=${!url.trim()}>Add</button></form>
       <p class="muted" style=${{ margin: 0 }}>Steward schedules around these meetings. They refresh every 30 minutes and are read only here. <b>Google:</b> Calendar settings → your calendar → <i>Secret address in iCal format</i>. <b>Outlook:</b> Settings → Calendar → Shared calendars → <i>Publish a calendar</i>, choose <i>Can view when I’m busy</i>, and copy the ICS link. Busy-only is enough, since Steward just needs to know when you’re taken. <b>iCloud:</b> share the calendar publicly and copy the link.</p>
     </div></div>`;
