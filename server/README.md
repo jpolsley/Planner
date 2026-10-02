@@ -50,7 +50,7 @@ If Power Automate writes your work calendar to OneDrive as `diana-calendar.json`
 2. Restart the server (click the Steward app after stopping it).
 3. In Steward, go to **Settings → Calendars** and press **Add** next to **Work calendar**.
 
-The server reads the feed (at most every 20 minutes) and keeps the last good copy if a read fails. The link never leaves the server. Steward plans around these meetings and Diana can see them; it never writes to your work calendar. Cancelled meetings and events marked *Free* are skipped. Private events show as "Private appointment" unless you set `DIANA_WORK_CALENDAR_SHOW_PRIVATE=1`.
+The server reads the feed (at most every 20 minutes) and keeps the last good copy if a read fails. The link never leaves the server. Steward plans around these meetings and Diana can see them; it never writes to your work calendar. Cancelled meetings and events marked *Free* are skipped. Private events show with their real titles; set `DIANA_WORK_CALENDAR_HIDE_PRIVATE=1` to show them only as "Private appointment".
 
 ## Updating the server
 When Steward gets a new server feature, run this once in Terminal. It downloads the new server file and stops the old server:
