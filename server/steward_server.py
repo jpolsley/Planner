@@ -140,7 +140,7 @@ def _authorized(request: Request) -> bool:
 @app.get("/health")
 def health():
     return {"ok": True, "configured": bool(STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS,
-            "features": ["sync", "calendar", "events", "docs"] + (["workcal"] if WORK_FEED_URL else []), "sync": str(DATA_FILE), "server": "local"}
+            "features": ["sync", "calendar", "events", "docs"] + (["workcal"] if WORK_FEED_URL else []) + (["email"] if MAIL_FEED_URL else []), "sync": str(DATA_FILE), "server": "local"}
 
 
 class ThinkFilter:
@@ -646,6 +646,237 @@ async def _work_refresh(force=False):
     except Exception:
         pass
     return cache
+
+
+# ---------- work email feed (read-only) ----------
+# Up to ~100 Inbox + ~100 Sent messages (previews only), written hourly by Power Automate to OneDrive as diana-email.json
+# and shared with a view-only link kept only in steward.env (DIANA_WORK_EMAIL_FEED_URL). Code works out the facts
+# (threads, who spoke last, whether Justin replied, how long someone has waited, internal/external, automated or
+# human); Diana judges meaning and drafts replies. Nothing is ever sent.
+MAIL_FEED_URL = os.environ.get("DIANA_WORK_EMAIL_FEED_URL", "").strip()
+MAIL_DOMAINS = [d.strip().lower() for d in os.environ.get("DIANA_WORK_EMAIL_DOMAINS", "salvationarmy.org").split(",") if d.strip()]
+MAIL_CACHE = DATA_FILE.parent / "work-email.json"
+_BANNER = re.compile(r"^\s*(\[?external\]?:?\s*)?(caution|warning|notice)?\s*:?\s*(this (e-?mail|message) (originated|came|was sent) from (outside|an external)[^.]*\.([^.]*(click|open|attachments|sender|safe|trust)[^.]*\.){0,3})\s*", re.I)
+_AUTO_FROM = re.compile(r"(no-?reply|do-?not-?reply|notification|notifications|mailer|newsletter|news@|marketing|bounce|alerts?@|system|automated|calendar-notification|support@|info@|updates?@|digest)", re.I)
+_PROMO = re.compile(r"(unsubscribe|view (this|it) in your browser|newsletter|webinar|% off|sale ends|limited time|register now|special offer|promo|your (order|receipt|invoice)|has been shipped|password reset|verification code)", re.I)
+_ASK = re.compile(r"(\?|\bcan you\b|\bcould you\b|\bwould you\b|\bplease\b|\blet me know\b|\bneed\b|\bwhen (can|will|do)\b|\bwhat (time|date|do you)\b|\bthoughts\b|\bconfirm\b|\bapprove\b|\bsend (me|over)\b|\bfollow(ing)? up\b|\bany update\b)", re.I)
+
+
+def _addr(v):
+    """Outlook gives 'Name <a@b>', 'a@b', a list, or {emailAddress:{name,address}}."""
+    if isinstance(v, list):
+        return [x for x in (_addr(i) for i in v) if x]
+    if isinstance(v, dict):
+        e = v.get("emailAddress", v)
+        return {"name": str(e.get("name") or "").strip(), "address": str(e.get("address") or "").strip().lower()}
+    t = str(v or "").strip()
+    if not t:
+        return None
+    if ";" in t:
+        return [x for x in (_addr(i) for i in t.split(";")) if x]
+    m = re.match(r'^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$', t)
+    return {"name": m.group(1).strip(), "address": m.group(2).strip().lower()} if m else {"name": "", "address": t.lower()}
+
+
+def _as_list(v):
+    a = _addr(v)
+    return a if isinstance(a, list) else ([a] if a else [])
+
+
+def _internal(address):
+    dom = address.split("@")[-1] if "@" in address else ""
+    return any(dom == d or dom.endswith("." + d) for d in MAIL_DOMAINS)
+
+
+def _mail_normalize(raw):
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    if isinstance(raw, dict):
+        raw = raw.get("value", raw.get("messages"))
+    if not isinstance(raw, list):
+        raise ValueError("the email feed isn't a list of messages")
+    msgs = []
+    for e in raw:
+        if not isinstance(e, dict):
+            continue
+        t = _work_time(e.get("receivedDateTime") or e.get("sentDateTime"))
+        if not t:
+            continue
+        frm = _addr(e.get("from"))
+        frm = frm[0] if isinstance(frm, list) and frm else frm or {"name": "", "address": ""}
+        preview = re.sub(r"\s+", " ", str(e.get("bodyPreview") or "")).strip()
+        preview = _BANNER.sub("", preview, count=1).strip()
+        msgs.append({"id": _short_id(str(e.get("internetMessageId") or e.get("id") or "") + str(t)), "conv": str(e.get("conversationId") or e.get("id") or ""),
+                     "ts": int(t.timestamp() * 1000), "folder": "sent" if str(e.get("sourceFolder") or "").lower() == "sent" else "inbox",
+                     "from": frm, "to": _as_list(e.get("toRecipients")), "cc": _as_list(e.get("ccRecipients")),
+                     "subject": str(e.get("subject") or "(no subject)").strip()[:300], "preview": preview[:600],
+                     "read": bool(e.get("isRead")), "importance": str(e.get("importance") or "normal").lower(), "attach": bool(e.get("hasAttachments"))})
+    # de-duplicate (a message can appear in both folders when you email yourself) and sort
+    seen, out = set(), []
+    for m in sorted(msgs, key=lambda x: x["ts"]):
+        k = (m["id"], m["folder"])
+        if k not in seen:
+            seen.add(k); out.append(m)
+    return out
+
+
+def _mail_me(msgs):
+    """The user's own address: whoever sends the Sent Items."""
+    counts = {}
+    for m in msgs:
+        if m["folder"] == "sent" and m["from"].get("address"):
+            counts[m["from"]["address"]] = counts.get(m["from"]["address"], 0) + 1
+    return max(counts, key=counts.get) if counts else ""
+
+
+def _mail_kind(m):
+    a = m["from"].get("address", "")
+    if _AUTO_FROM.search(a) or _AUTO_FROM.search(m["from"].get("name", "")):
+        return "automated"
+    if _PROMO.search(m["preview"]) or _PROMO.search(m["subject"]):
+        return "newsletter"
+    return "person"
+
+
+def _mail_threads(msgs):
+    me = _mail_me(msgs)
+    now = int(time.time() * 1000)
+    convs = {}
+    for m in msgs:
+        convs.setdefault(m["conv"], []).append(m)
+    threads = []
+    for conv, ms in convs.items():
+        ms.sort(key=lambda x: x["ts"])
+        last = ms[-1]
+        last_sent = max((x["ts"] for x in ms if x["folder"] == "sent"), default=0)
+        inbound_after = [x for x in ms if x["folder"] == "inbox" and x["ts"] > last_sent]
+        first_in = inbound_after[0] if inbound_after else None
+        latest_in = inbound_after[-1] if inbound_after else None
+        kind = _mail_kind(latest_in) if latest_in else "person"
+        direct = bool(latest_in) and (not me or any(r.get("address") == me for r in latest_in["to"]))
+        if last["folder"] == "sent":
+            state = "USER_REPLIED"
+        elif not latest_in:
+            state = "UNKNOWN"
+        elif kind != "person":
+            state = "LIKELY_RESOLVED"  # automated or newsletter: nobody is waiting
+        elif not direct:
+            state = "LIKELY_RESOLVED"  # you were only copied
+        else:
+            state = "AWAITING_USER_REPLY"
+        people = {}
+        for x in ms:
+            if x["folder"] == "inbox" and x["from"].get("address"):
+                people[x["from"]["address"]] = x["from"].get("name") or x["from"]["address"]
+        sender = latest_in["from"] if latest_in else last["from"]
+        ask = bool(latest_in) and bool(_ASK.search(latest_in["preview"]) or _ASK.search(latest_in["subject"]))
+        waiting_h = round((now - first_in["ts"]) / 3600000, 1) if first_in and state == "AWAITING_USER_REPLY" else 0
+        score = 0
+        if state == "AWAITING_USER_REPLY":
+            score = 50 + (20 if ask else 0) + (10 if latest_in["importance"] == "high" else 0) + min(20, len(inbound_after) * 6) + min(20, waiting_h / 6)
+            if not latest_in["read"]:
+                score += 5
+        threads.append({"id": _short_id(conv), "conv": conv, "subject": ms[0]["subject"], "state": state, "kind": kind,
+                        "from": sender, "internal": _internal(sender.get("address", "")), "direct": direct, "ask": ask,
+                        "waiting_hours": waiting_h, "followups": max(0, len(inbound_after) - 1), "last_ts": last["ts"],
+                        "last_from_me": last["folder"] == "sent", "count": len(ms), "people": list(people.values())[:6],
+                        "latest_preview": (latest_in or last)["preview"][:400], "score": round(score, 1)})
+    threads.sort(key=lambda t: (-t["score"], -t["last_ts"]))
+    return me, threads
+
+
+def _mail_cache_read():
+    try:
+        return json.loads(MAIL_CACHE.read_text())
+    except Exception:
+        return {}
+
+
+async def _feed_get(url):
+    async with httpx.AsyncClient(timeout=40, follow_redirects=True) as client:
+        res = await client.get(_work_url(url), headers={"User-Agent": "Steward"})
+    if res.status_code != 200:
+        raise ValueError(f"the feed answered {res.status_code}")
+    text = res.content.decode("utf-8-sig", "ignore").strip()
+    if text.startswith("<"):
+        raise ValueError("the link returned a web page, not the JSON file (is it a view link to the .json file?)")
+    return json.loads(text)
+
+
+async def _mail_refresh(force=False):
+    cache = _mail_cache_read()
+    now = int(time.time())
+    if not MAIL_FEED_URL or (not force and cache.get("checked", 0) > now - WORK_TTL):
+        return cache
+    cache["checked"] = now
+    try:
+        msgs = _mail_normalize(await _feed_get(MAIL_FEED_URL))
+        me, threads = _mail_threads(msgs)
+        cache.update({"messages": msgs, "threads": threads, "me": me, "synced": now, "error": None})
+    except Exception as e:
+        cache["error"] = str(e)[:300]
+    try:
+        MAIL_CACHE.write_text(json.dumps(cache))
+        os.chmod(MAIL_CACHE, 0o600)
+    except Exception:
+        pass
+    return cache
+
+
+def _mail_unauth(request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    if not MAIL_FEED_URL:
+        return JSONResponse({"error": "No work email feed is set on your Steward server (DIANA_WORK_EMAIL_FEED_URL in steward.env)."}, status_code=400)
+    return None
+
+
+@app.get("/v1/email/status")
+async def email_status(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    c = await _mail_refresh()
+    th = c.get("threads") or []
+    return {"configured": bool(MAIL_FEED_URL), "synced": c.get("synced"), "messages": len(c.get("messages") or []), "threads": len(th),
+            "awaiting": sum(1 for t in th if t["state"] == "AWAITING_USER_REPLY"), "error": c.get("error")}
+
+
+@app.get("/v1/email/attention")
+async def email_attention(request: Request, limit: int = 8):
+    bad = _mail_unauth(request)
+    if bad:
+        return bad
+    c = await _mail_refresh()
+    th = [t for t in (c.get("threads") or []) if t["state"] == "AWAITING_USER_REPLY"]
+    return {"synced": c.get("synced"), "stale": bool(c.get("error")), "threads": th[:max(1, min(limit, 25))], "total": len(th)}
+
+
+@app.get("/v1/email/search")
+async def email_search(request: Request, q: str = "", limit: int = 10):
+    bad = _mail_unauth(request)
+    if bad:
+        return bad
+    c = await _mail_refresh()
+    terms = [w for w in re.findall(r"[\w@.'-]{2,}", q.lower()) if w not in STOP]
+    def hay(t):
+        return " ".join([t["subject"], t["latest_preview"], t["from"].get("name", ""), t["from"].get("address", ""), " ".join(t["people"])]).lower()
+    th = c.get("threads") or []
+    hits = [(sum(w in hay(t) for w in terms), t) for t in th] if terms else [(1, t) for t in th]
+    hits = [t for sc, t in sorted(hits, key=lambda x: (-x[0], -x[1]["last_ts"])) if sc > 0]
+    return {"synced": c.get("synced"), "threads": hits[:max(1, min(limit, 25))]}
+
+
+@app.get("/v1/email/thread")
+async def email_thread(request: Request, id: str = ""):
+    bad = _mail_unauth(request)
+    if bad:
+        return bad
+    c = await _mail_refresh()
+    t = next((x for x in (c.get("threads") or []) if x["id"] == id), None)
+    if not t:
+        return JSONResponse({"error": "No conversation with that id."}, status_code=404)
+    ms = [m for m in (c.get("messages") or []) if m["conv"] == t["conv"]]
+    return {"thread": t, "me": c.get("me"), "messages": [{"when": m["ts"], "folder": m["folder"], "from": m["from"], "to": m["to"], "cc": m["cc"], "subject": m["subject"], "preview": m["preview"], "attach": m["attach"]} for m in ms][-12:]}
 
 
 @app.get("/v1/workcal")

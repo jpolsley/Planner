@@ -52,6 +52,9 @@ If Power Automate writes your work calendar to OneDrive as `diana-calendar.json`
 
 The server reads the feed (at most every 20 minutes) and keeps the last good copy if a read fails. The link never leaves the server. Steward plans around these meetings and Diana can see them; it never writes to your work calendar. Cancelled meetings and events marked *Free* are skipped. Private events show with their real titles; set `DIANA_WORK_CALENDAR_HIDE_PRIVATE=1` to show them only as "Private appointment".
 
+## Work email (Outlook, read-only)
+If Power Automate writes Inbox + Sent previews to OneDrive as `diana-email.json` with a view-only link, add `DIANA_WORK_EMAIL_FEED_URL=` followed by that link to `steward.env` and restart. The server groups messages into conversations, works out who spoke last and whether you replied, how long someone has been waiting, internal vs external (`DIANA_WORK_EMAIL_DOMAINS`, default salvationarmy.org), and automated mail vs a person. Diana uses that to tell you who is waiting on you and to draft replies for you to copy. She can't send email. The snapshot is cached in `data/work-email.json` (readable only by your account) and the last good copy is kept if a read fails.
+
 ## Updating the server
 When Steward gets a new server feature, run this once in Terminal. It downloads the new server file and stops the old server:
 ```
