@@ -527,7 +527,10 @@ def _ms(v):
 # a view-only link. The link is a secret: it lives only in steward.env (DIANA_WORK_CALENDAR_FEED_URL) and never goes
 # to the browser. Steward asks for it as the calendar address "steward:work".
 WORK_FEED_URL = os.environ.get("DIANA_WORK_CALENDAR_FEED_URL", "").strip()
-WORK_SHOW_PRIVATE = os.environ.get("DIANA_WORK_CALENDAR_SHOW_PRIVATE", "").strip().lower() in ("1", "true", "yes")
+# Private/confidential events show with their real titles (it's your own calendar). Set DIANA_WORK_CALENDAR_HIDE_PRIVATE=1
+# to show them only as "Private appointment". The old DIANA_WORK_CALENDAR_SHOW_PRIVATE=0 also hides them.
+WORK_SHOW_PRIVATE = not (os.environ.get("DIANA_WORK_CALENDAR_HIDE_PRIVATE", "").strip().lower() in ("1", "true", "yes")
+                         or os.environ.get("DIANA_WORK_CALENDAR_SHOW_PRIVATE", "").strip().lower() in ("0", "false", "no"))
 WORK_CACHE = DATA_FILE.parent / "work-calendar.json"
 WORK_TTL = 20 * 60
 _WIN_TZ = {"Central Standard Time": "America/Chicago", "Eastern Standard Time": "America/New_York", "Mountain Standard Time": "America/Denver",
