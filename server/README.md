@@ -44,6 +44,14 @@ All of these live in `~/Steward` (change it with `STEWARD_HOME`):
 - `data/steward.json`: your synced planner.
 - `data/backups/`: one copy per day, and the last 14 days are kept.
 
+## Work calendar (Outlook, read-only)
+If Power Automate writes your work calendar to OneDrive as `diana-calendar.json` and shares it with a view-only link:
+1. Open `~/Steward/server/steward.env` in TextEdit and add a line: `DIANA_WORK_CALENDAR_FEED_URL=` followed by the link.
+2. Restart the server (click the Steward app after stopping it).
+3. In Steward, go to **Settings → Calendars** and press **Add** next to **Work calendar**.
+
+The server reads the feed (at most every 20 minutes) and keeps the last good copy if a read fails. The link never leaves the server. Steward plans around these meetings and Diana can see them; it never writes to your work calendar. Cancelled meetings and events marked *Free* are skipped. Private events show as "Private appointment" unless you set `DIANA_WORK_CALENDAR_SHOW_PRIVATE=1`.
+
 ## Updating the server
 When Steward gets a new server feature, run this once in Terminal. It downloads the new server file and stops the old server:
 ```

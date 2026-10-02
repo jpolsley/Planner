@@ -140,7 +140,7 @@ def _authorized(request: Request) -> bool:
 @app.get("/health")
 def health():
     return {"ok": True, "configured": bool(STEWARD_KEY), "documents": len({c["source"] for c in CHUNKS}), "models": MODELS,
-            "features": ["sync", "calendar", "events"], "sync": str(DATA_FILE), "server": "local"}
+            "features": ["sync", "calendar", "events", "docs"] + (["workcal"] if WORK_FEED_URL else []), "sync": str(DATA_FILE), "server": "local"}
 
 
 class ThinkFilter:
@@ -522,12 +522,150 @@ def _ms(v):
     return v.strftime("%Y-%m-%dT00:00:00")
 
 
+# ---------- work calendar feed (read-only) ----------
+# A sanitized JSON snapshot of the work Outlook calendar, written hourly by Power Automate to OneDrive and shared with
+# a view-only link. The link is a secret: it lives only in steward.env (DIANA_WORK_CALENDAR_FEED_URL) and never goes
+# to the browser. Steward asks for it as the calendar address "steward:work".
+WORK_FEED_URL = os.environ.get("DIANA_WORK_CALENDAR_FEED_URL", "").strip()
+WORK_SHOW_PRIVATE = os.environ.get("DIANA_WORK_CALENDAR_SHOW_PRIVATE", "").strip().lower() in ("1", "true", "yes")
+WORK_CACHE = DATA_FILE.parent / "work-calendar.json"
+WORK_TTL = 20 * 60
+_WIN_TZ = {"Central Standard Time": "America/Chicago", "Eastern Standard Time": "America/New_York", "Mountain Standard Time": "America/Denver",
+           "Pacific Standard Time": "America/Los_Angeles", "US Mountain Standard Time": "America/Phoenix", "UTC": "UTC", "Coordinated Universal Time": "UTC"}
+
+
+def _work_url(url: str) -> str:
+    """OneDrive/SharePoint view links open a web page; download=1 asks for the file itself."""
+    if re.search(r"(sharepoint\.com|1drv\.ms|onedrive\.live\.com)", url, re.I) and not re.search(r"[?&]download=1", url):
+        url += ("&" if "?" in url else "?") + "download=1"
+    return url
+
+
+def _work_time(v, tz_name=None):
+    """Outlook times: '2026-10-03T14:00:00+00:00', '2026-10-03T14:00:00.0000000' (UTC), or {'dateTime','timeZone'}."""
+    if isinstance(v, dict):
+        return _work_time(v.get("dateTime"), v.get("timeZone"))
+    if not v:
+        return None
+    t = str(v).strip().replace("Z", "+00:00")
+    t = re.sub(r"(\.\d{1,6})\d*", r"\1", t)  # Outlook writes 7 fractional digits
+    try:
+        d = datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        zone = timezone.utc
+        if tz_name:
+            try:
+                from zoneinfo import ZoneInfo
+                zone = ZoneInfo(_WIN_TZ.get(tz_name, tz_name))
+            except Exception:
+                zone = timezone.utc
+        d = d.replace(tzinfo=zone)
+    return d
+
+
+def _work_normalize(raw):
+    """Feed → the same event shape the .ics importer returns. Raises ValueError if it isn't the expected JSON."""
+    if isinstance(raw, str):
+        raw = json.loads(raw)  # Compose may have written the array as a JSON string
+    if isinstance(raw, dict):
+        raw = raw.get("value", raw.get("events"))
+    if not isinstance(raw, list):
+        raise ValueError("the feed isn't a list of events")
+    out = []
+    for e in raw:
+        if not isinstance(e, dict):
+            continue
+        subject = str(e.get("subject") or "").strip()
+        if re.match(r"^(canceled|cancelled)\s*:", subject, re.I) or e.get("isCancelled") is True:
+            continue  # cancelled meetings
+        show = str(e.get("showAs") or "").lower()
+        if show == "free":
+            continue  # doesn't block time, same as a "free" .ics event
+        s, en = _work_time(e.get("start")), _work_time(e.get("end"))
+        if not s:
+            continue
+        all_day = bool(e.get("isAllDay"))
+        private = str(e.get("sensitivity") or "").lower() in ("private", "confidential")
+        title = "Private appointment" if private and not WORK_SHOW_PRIVATE else (subject or "Busy")
+        if all_day:
+            start = s.strftime("%Y-%m-%dT00:00:00")
+            end = (en or s + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+        else:
+            start = int(s.timestamp() * 1000)
+            end = int((en or s + timedelta(minutes=30)).timestamp() * 1000)
+        loc = e.get("location")
+        if isinstance(loc, dict):
+            loc = loc.get("displayName", "")
+        uid = str(e.get("id") or "") or subject + str(start)
+        out.append({"uid": _short_id(uid), "title": title, "start": start, "end": end,
+                    "allDay": all_day, "location": "" if private and not WORK_SHOW_PRIVATE else str(loc or ""),
+                    "tentative": show == "tentative"})
+    return out
+
+
+def _short_id(text: str) -> str:
+    import hashlib
+    return "w" + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()[:16]
+
+
+def _work_cache_read():
+    try:
+        return json.loads(WORK_CACHE.read_text())
+    except Exception:
+        return {}
+
+
+async def _work_refresh(force=False):
+    """Fetch the feed if the cached copy is old. A failed fetch keeps the last good snapshot and records the error."""
+    cache = _work_cache_read()
+    now = int(time.time())
+    if not WORK_FEED_URL:
+        return cache
+    if not force and cache.get("checked", 0) > now - WORK_TTL:
+        return cache
+    cache["checked"] = now
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            res = await client.get(_work_url(WORK_FEED_URL), headers={"User-Agent": "Steward calendar"})
+        if res.status_code != 200:
+            raise ValueError(f"the feed answered {res.status_code}")
+        text = res.content.decode("utf-8-sig", "ignore").strip()
+        if text.startswith("<"):
+            raise ValueError("the link returned a web page, not the JSON file (is it a view link to diana-calendar.json?)")
+        events = _work_normalize(json.loads(text))
+        cache.update({"events": events, "synced": now, "error": None})
+    except Exception as e:
+        cache["error"] = str(e)[:300]
+    try:
+        WORK_CACHE.write_text(json.dumps(cache))
+    except Exception:
+        pass
+    return cache
+
+
+@app.get("/v1/workcal")
+async def workcal_status(request: Request):
+    if not _authorized(request):
+        return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
+    c = await _work_refresh()
+    return {"configured": bool(WORK_FEED_URL), "synced": c.get("synced"), "count": len(c.get("events") or []), "error": c.get("error")}
+
+
 @app.post("/v1/calendar")
 async def calendar(request: Request):
     if not _authorized(request):
         return JSONResponse({"error": "Wrong Steward key."}, status_code=401)
     body = await request.json()
     url = str(body.get("url", "")).strip()
+    if url == "steward:work":
+        if not WORK_FEED_URL:
+            return JSONResponse({"error": "No work calendar feed is set on your Steward server (DIANA_WORK_CALENDAR_FEED_URL in steward.env)."}, status_code=400)
+        c = await _work_refresh()
+        if not c.get("events") and c.get("error"):
+            return JSONResponse({"error": "Couldn't read the work calendar feed: " + c["error"]}, status_code=502)
+        return {"name": "Work calendar", "events": (c.get("events") or [])[:1500], "synced": c.get("synced"), "stale": bool(c.get("error"))}
     url = re.sub(r"^webcals?://", "https://", url, flags=re.I)
     if not re.match(r"^https?://", url, re.I):
         return JSONResponse({"error": "That isn't a calendar link. Copy the one ending in .ics."}, status_code=400)
