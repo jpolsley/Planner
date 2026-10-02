@@ -125,8 +125,8 @@ const kinAI = {
     // Ask the server which model it actually runs (the first one in its MODEL list).
     if (sp && sp.url) fetch(sp.url + '/health', { cache: 'no-store' }).then((r) => r.json()).then((h) => {
       const id = Array.isArray(h.models) ? h.models[0] : h.model;
-      if (!id) return;
-      try { kinSave(KIN_SPACE_KEY, { ...kinSpace(), model: id }); } catch (e) {}
+      if (!id) { try { kinSave(KIN_SPACE_KEY, { ...kinSpace(), features: Array.isArray(h.features) ? h.features : [] }); } catch (e) {} return; }
+      try { kinSave(KIN_SPACE_KEY, { ...kinSpace(), model: id, features: Array.isArray(h.features) ? h.features : [] }); } catch (e) {}
       if (this.device === 'cloud') this.set({ model: { ...(this.model || {}), key: 'cloud', name: kinModelName(id) } });
     }).catch(() => {});
   },
@@ -604,7 +604,13 @@ function AssistantView(ctx) {
     setInput('');
     let reply = '';
     try {
-      const base = kinSystem(state, plan, text) + (ci ? '\n\n' + ci.block : '')
+      // Asked about email: look up who is waiting first, so a small model doesn't have to decide to.
+      let mail = '';
+      if (typeof agentEmailOn === 'function' && agentEmailOn() && /\b(e-?mails?|inbox|repl(y|ies|ied)|respond(ed)?|get back to|waiting on me|follow(ed)? up|owe)\b/i.test(text)) {
+        patch(id, () => ({ steps: ['email_attention'] }));
+        mail = await agentEmailTool('email_attention', {}, refs);
+      }
+      const base = kinSystem(state, plan, text) + (ci ? '\n\n' + ci.block : '') + (mail ? '\n\nWORK EMAIL (looked up by Steward for this message; read-only, you cannot send):\n' + mail : '')
         + (compact && compact.points.length ? '\n\nEarlier in this conversation:\n' + compact.points.map((p) => '- ' + p).join('\n') : '')
         + (mode === 'plan' ? '\n\nPLAN-ONLY MODE: the user has turned off changes. Never include an actions block; describe what you would change in words.' : '');
       // The guard and the lookups apply to this request only; the stored chat stays exactly as said.
@@ -713,6 +719,17 @@ function AssistantView(ctx) {
   </div>`;
 }
 
+/* Work email: read-only status of the Power Automate feed on the Steward server. */
+function WorkEmailStatus() {
+  const [st, setSt] = useState(null);
+  useEffect(() => { if (typeof agentEmailOn === 'function' && agentEmailOn()) agentEmail('/v1/email/status').then(setSt).catch((e) => setSt({ error: e.message })); }, []);
+  if (!(typeof agentEmailOn === 'function' && agentEmailOn())) return null;
+  return html`<section class="panel" style=${{ marginBottom: '16px' }}><div class="ph"><h2>Work email</h2></div>
+    <p class="small" style=${{ padding: '0 16px 14px', margin: 0, color: st && st.error ? 'var(--bad)' : 'var(--ink-2)' }}>${!st ? 'Checking…' : st.error && !st.messages ? st.error
+      : st.messages + ' messages in ' + st.threads + ' conversations' + (st.awaiting ? ' · ' + st.awaiting + ' waiting on you' : '') + (st.synced ? ' · updated ' + fmtT(st.synced * 1000) : '') + (st.error ? ' · showing the last good copy (' + st.error + ')' : '')}
+      <br /><span class="muted">Read-only. Diana can look up who's waiting on you and draft replies for you to copy; she can't send anything.</span></p></section>`;
+}
+
 /* Settings → Diana: connection, model, private mode, documents, memory, learning and the replay test. */
 function DianaSettings({ state, plan, commit, setToast }) {
   const [, force] = useState(0);
@@ -792,6 +809,7 @@ function DianaSettings({ state, plan, commit, setToast }) {
         <div style=${{ padding: '0 16px 12px' }}><label class="small" style=${{ display: 'flex', gap: '6px', alignItems: 'center' }}><input type="checkbox" checked=${!!prefs.onDevice} disabled=${busy} onChange=${(e) => { setPrefs({ onDevice: e.target.checked }); restart(); }} />Private mode (on-device, slower)</label></div>`}
     </section>
 
+    <${WorkEmailStatus} />
     <${DocsPanel} setToast=${setToast} />
     <${MemoryPanel} prefs=${prefs} setPrefs=${setPrefs} pats=${pats} setToast=${setToast} />
     <${LearningPanels} state=${state} commit=${commit} setToast=${setToast} />

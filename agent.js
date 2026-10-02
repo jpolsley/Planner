@@ -18,6 +18,42 @@ const AGENT_TOOLS_PROMPT = '\n\nBefore answering you may look things up. To use 
   + '- past_conversations {query}: summaries of earlier chats.\n'
   + '- calendar {from: "YYYY-MM-DD", days?: 1-14}: meetings with M# refs.\n'
   + 'Use tools only when the snapshot is not enough. Never show tool blocks to the user in a final answer.';
+/* Work email tools, only when the Steward server has the email feed. Read-only: Diana drafts, never sends. */
+const AGENT_EMAIL_PROMPT = '\nWork email (read-only; previews only):\n'
+  + '- email_attention {}: conversations where someone is waiting on the user (Steward has already checked there is no later reply from them), most urgent first, with E# refs.\n'
+  + '- email_search {query}: conversations matching a person, subject or words.\n'
+  + '- email_thread {ref: "E#"}: the messages in one conversation, oldest first.\n'
+  + 'You cannot send email. When asked, write a short draft reply in plain text after "Draft reply:" for the user to copy. Never say a message was sent.';
+const agentEmailOn = () => { const sp = typeof kinSpace === 'function' ? kinSpace() : null; return !!(sp && sp.features && sp.features.includes('email')); };
+const agentToolsPrompt = () => AGENT_TOOLS_PROMPT + (agentEmailOn() ? AGENT_EMAIL_PROMPT : '');
+async function agentEmail(path) {
+  const sp = kinSpace();
+  const r = await fetch(sp.url + path, { headers: { Authorization: 'Bearer ' + sp.key } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'email error ' + r.status);
+  return j;
+}
+const agoH = (h) => (h >= 48 ? Math.round(h / 24) + ' days' : h >= 1 ? Math.round(h) + ' hours' : 'under an hour');
+function emailLine(t, refs) {
+  const ref = 'E' + (Object.keys(refs).filter((k) => k[0] === 'E').length + 1); refs[ref] = t.id;
+  return '[' + ref + '] ' + (t.from.name || t.from.address) + (t.internal ? ' (internal)' : ' (external)') + ' — "' + t.subject + '" — '
+    + (t.state === 'AWAITING_USER_REPLY' ? 'waiting on the user ' + agoH(t.waiting_hours) + (t.followups ? ', ' + t.followups + ' follow-up' + (t.followups > 1 ? 's' : '') : '') + (t.ask ? ', asks something' : '')
+      : t.state === 'USER_REPLIED' ? 'the user replied last' : t.kind !== 'person' ? t.kind + ' mail' : 'user was only copied')
+    + '\n   latest: ' + t.latest_preview.slice(0, 280);
+}
+async function agentEmailTool(name, args, refs) {
+  if (!agentEmailOn()) return 'Work email is not connected.';
+  try {
+    if (name === 'email_attention') { const d = await agentEmail('/v1/email/attention?limit=8'); return d.threads.length ? d.total + ' conversation' + (d.total === 1 ? '' : 's') + ' waiting on the user:\n' + d.threads.map((t) => emailLine(t, refs)).join('\n') : 'Nobody is waiting on a reply.'; }
+    if (name === 'email_search') { const d = await agentEmail('/v1/email/search?limit=8&q=' + encodeURIComponent(args.query || '')); return d.threads.length ? d.threads.map((t) => emailLine(t, refs)).join('\n') : 'No matching email.'; }
+    if (name === 'email_thread') {
+      const id = refs[args.ref] || args.ref;
+      const d = await agentEmail('/v1/email/thread?id=' + encodeURIComponent(id || ''));
+      return '"' + d.thread.subject + '"\n' + d.messages.map((m) => fmtD(m.when) + ' ' + fmtT(m.when) + ' ' + (m.folder === 'sent' ? 'The user' : (m.from.name || m.from.address)) + ': ' + m.preview).join('\n');
+    }
+  } catch (e) { return 'Email lookup failed: ' + e.message; }
+  return 'Unknown tool "' + name + '".';
+}
 
 function agentTool(name, args, state, plan, refs) {
   const now = Date.now();
@@ -85,13 +121,14 @@ function agentToolCall(text) {
   if (!m) return null;
   try { const j = JSON.parse(m[1].trim()); return j && j.name ? { name: String(j.name), args: j.args || {} } : null; } catch (e) { return { name: 'invalid', args: {}, bad: m[1].slice(0, 200) }; }
 }
-const AGENT_TOOL_LABEL = { search_tasks: 'Searching tasks', project_status: 'Checking the project', free_time: 'Finding free time', read_note: 'Reading notes', past_conversations: 'Remembering earlier chats', calendar: 'Checking the calendar' };
+const AGENT_TOOL_LABEL = { email_attention: 'Checking email', email_search: 'Searching email', email_thread: 'Reading the thread', search_tasks: 'Searching tasks', project_status: 'Checking the project', free_time: 'Finding free time', read_note: 'Reading notes', past_conversations: 'Remembering earlier chats', calendar: 'Checking the calendar' };
 
 /* Runs the loop. onStep(steps) reports each lookup; onText(textSoFar) streams the answer. Returns { text, steps }. */
 async function agentRun({ system, history, state, plan, refs, onStep, onText, maxTokens = 700 }) {
   // Parts that never change go first so a local model can reuse what it already read (prompt caching);
   // the planner snapshot, recall and time come after.
-  const content = system.startsWith(KIN_BASE) ? KIN_BASE + AGENT_TOOLS_PROMPT + system.slice(KIN_BASE.length) : system + AGENT_TOOLS_PROMPT;
+  const tp = agentToolsPrompt();
+  const content = system.startsWith(KIN_BASE) ? KIN_BASE + tp + system.slice(KIN_BASE.length) : system + tp;
   const msgs = [{ role: 'system', content }, ...history];
   const steps = [];
   for (let i = 0; i <= AGENT_MAX_STEPS; i++) {
@@ -106,7 +143,7 @@ async function agentRun({ system, history, state, plan, refs, onStep, onText, ma
     if (!call) return { text: out.replace(/```\s*tool[\s\S]*?```/gi, '').trim(), steps };
     steps.push({ tool: call.name, args: call.args });
     onStep && onStep(steps);
-    const result = call.bad ? 'That tool block was not valid JSON: ' + call.bad : agentTool(call.name, call.args, state, plan, refs);
+    const result = call.bad ? 'That tool block was not valid JSON: ' + call.bad : /^email_/.test(call.name) ? await agentEmailTool(call.name, call.args, refs) : agentTool(call.name, call.args, state, plan, refs);
     // Evidence for the decision trace: a short summary and fingerprint of what Diana saw, not a second copy of the data.
     steps[steps.length - 1].obs = { chars: result.length, lines: result.split('\n').length, hash: syncHash(result), head: result.split('\n')[0].slice(0, 160) };
     msgs.push({ role: 'assistant', content: out.trim() }, { role: 'user', content: 'Tool result (' + call.name + '):\n' + result.slice(0, 6000) + '\n\nContinue: use another tool if needed, or answer the user now.' });
